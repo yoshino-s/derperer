@@ -10,21 +10,15 @@ import (
 )
 
 var (
-	fofaClient = fofa.Fofa{}
-	batch      int
+	derpererConfig = derperer.DerpererConfig{
+		FofaClient: fofa.Fofa{},
+	}
 )
 
 var serverCmd = &cobra.Command{
 	Use: "server",
 	Run: func(cmd *cobra.Command, args []string) {
-		derpererConfig := derperer.DerpererConfig{
-			Address:        ":8080",
-			UpdateInterval: 2 * time.Minute,
-			FetchInterval:  time.Hour,
-			FetchBatch:     batch,
-			FofaClient:     fofaClient,
-			LatencyLimit:   time.Second,
-		}
+
 		derperer := derperer.NewDerperer(derpererConfig)
 		derperer.Start()
 	},
@@ -35,9 +29,13 @@ func init() {
 
 	rootCmd.AddCommand(serverCmd)
 
-	serverCmd.PersistentFlags().StringVarP(&fofaClient.Email, "fofa-email", "e", "", "fofa email")
-	serverCmd.PersistentFlags().StringVarP(&fofaClient.Key, "fofa-key", "k", "", "fofa key")
-	serverCmd.PersistentFlags().IntVarP(&batch, "batch", "b", 25, "batch")
+	serverCmd.PersistentFlags().StringVarP(&derpererConfig.FofaClient.Email, "fofa-email", "e", "", "fofa email")
+	serverCmd.PersistentFlags().StringVarP(&derpererConfig.FofaClient.Key, "fofa-key", "k", "", "fofa key")
+	serverCmd.PersistentFlags().IntVarP(&derpererConfig.FetchBatch, "batch", "b", 100, "batch")
+	serverCmd.PersistentFlags().StringVarP(&derpererConfig.Address, "address", "a", ":8080", "address")
+	serverCmd.PersistentFlags().DurationVarP(&derpererConfig.UpdateInterval, "update-interval", "u", 2*time.Minute, "update interval")
+	serverCmd.PersistentFlags().DurationVarP(&derpererConfig.FetchInterval, "fetch-interval", "f", time.Hour, "fetch interval")
+	serverCmd.PersistentFlags().DurationVarP(&derpererConfig.LatencyLimit, "latency-limit", "l", time.Second, "latency limit")
 }
 
 func initConfig() {
@@ -50,10 +48,10 @@ func initConfig() {
 
 	viper.ReadInConfig()
 
-	if fofaClient.Email == "" {
-		fofaClient.Email = viper.GetString("fofa_email")
+	if derpererConfig.FofaClient.Email == "" {
+		derpererConfig.FofaClient.Email = viper.GetString("fofa_email")
 	}
-	if fofaClient.Key == "" {
-		fofaClient.Key = viper.GetString("fofa_key")
+	if derpererConfig.FofaClient.Key == "" {
+		derpererConfig.FofaClient.Key = viper.GetString("fofa_key")
 	}
 }

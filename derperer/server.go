@@ -84,6 +84,9 @@ func (d *Derperer) Start() error {
 				continue
 			}
 			for regionID, region := range derpMap.Regions {
+				if report.RegionLatency[regionID] == 0 {
+					continue
+				}
 				if report.RegionLatency[regionID] > d.LatencyLimit {
 					region.Avoid = true
 				}

@@ -1037,23 +1037,7 @@ func (c *Client) GetReport(ctx context.Context, dm *tailcfg.DERPMap) (_ *Report,
 				need = append(need, reg)
 			}
 		}
-		if len(need) > 0 {
-			// Kick off ICMP in parallel to HTTPS checks; we don't
-			// reuse the same WaitGroup for those probes because we
-			// need to close the underlying Pinger after a timeout
-			// or when all ICMP probes are done, regardless of
-			// whether the HTTPS probes have finished.
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				if err := c.measureAllICMPLatency(ctx, rs, need); err != nil {
-					c.logf("[v1] measureAllICMPLatency: %v", err)
-				}
-			}()
-
-			wg.Add(len(need))
-			c.logf("netcheck: UDP is blocked, trying HTTPS")
-		}
+		wg.Add(len(need))
 		for _, reg := range need {
 			go func(reg *tailcfg.DERPRegion) {
 				defer wg.Done()

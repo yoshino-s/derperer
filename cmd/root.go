@@ -13,7 +13,7 @@ var (
 
 // Execute executes the root command.
 func Execute() {
-	logger, _ := zap.NewDevelopment()
+	logger, _ := zap.NewProduction()
 	zap.ReplaceGlobals(logger)
 
 	if err := rootCmd.Execute(); err != nil {

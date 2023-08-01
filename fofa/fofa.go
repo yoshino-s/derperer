@@ -47,7 +47,7 @@ func (fofa *Fofa) Query(query string, batch int, limit int) (<-chan []FofaResult
 			if err != nil {
 				zap.L().Error("failed to query fofa", zap.Error(err))
 				if strings.Contains(err.Error(), "45012") { // too fast
-					time.Sleep(5 * time.Second)
+					time.Sleep(10 * time.Second)
 					continue
 				} else {
 					break
