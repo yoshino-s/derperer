@@ -1,0 +1,6 @@
+stages:
+  - release
+
+include:
+  - project: template/gitlabci-template
+    file: docker.gitlab-ci.yml
