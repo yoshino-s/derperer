@@ -49,7 +49,7 @@ func (d *Derperer) Start() error {
 	fetchFofaData := func() {
 		zap.L().Info("fetching fofa")
 		rawResults := [][]fofa.FofaResult{}
-		res, finish, err := d.FofaClient.Query("fid=\"QSk7WHdA/IWH9oZf9xszuw==\"", d.FetchBatch, 10)
+		res, finish, err := d.FofaClient.Query("fid=\"QSk7WHdA/IWH9oZf9xszuw==\"", d.FetchBatch, -1)
 		if err != nil {
 			zap.L().Error("failed to query fofa", zap.Error(err))
 		}

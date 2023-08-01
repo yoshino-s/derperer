@@ -37,7 +37,7 @@ func init() {
 
 	serverCmd.PersistentFlags().StringVarP(&fofaClient.Email, "fofa-email", "e", "", "fofa email")
 	serverCmd.PersistentFlags().StringVarP(&fofaClient.Key, "fofa-key", "k", "", "fofa key")
-	serverCmd.PersistentFlags().IntVarP(&batch, "batch", "b", 10, "batch")
+	serverCmd.PersistentFlags().IntVarP(&batch, "batch", "b", 25, "batch")
 }
 
 func initConfig() {
