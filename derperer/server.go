@@ -72,7 +72,6 @@ func (d *Derperer) FetchFofaData() {
 			case <-finish:
 				return
 			}
-			break
 		}
 	}()
 	zap.L().Info("fetched fofa", zap.Int("result_count", total))
