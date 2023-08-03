@@ -13,8 +13,14 @@ var (
 
 // Execute executes the root command.
 func Execute() {
-	logger, _ := zap.NewProduction()
-	zap.ReplaceGlobals(logger)
+	if Version == "dev" {
+		logger, _ := zap.NewDevelopment()
+		zap.ReplaceGlobals(logger)
+		zap.L().Info("running in dev mode")
+	} else {
+		logger, _ := zap.NewProduction()
+		zap.ReplaceGlobals(logger)
+	}
 
 	if err := rootCmd.Execute(); err != nil {
 		zap.L().Fatal("failed to execute root command", zap.Error(err))

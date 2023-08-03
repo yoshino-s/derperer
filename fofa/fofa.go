@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -14,8 +15,8 @@ import (
 )
 
 const (
-	URL    = "https://fofa.info/api/v1/search/all?email=%s&key=%s&qbase64=%s&fields=%s&page=%d&size=%d"
-	Fields = "ip,port,host,country,region,as_organization"
+	URL    = "https://fofa.info/api/v1/search/next?email=%s&key=%s&qbase64=%s&fields=%s&next=%s&size=%d"
+	Fields = "ip,port,host,domain,country,region,as_organization"
 )
 
 type Fofa struct {
@@ -35,13 +36,13 @@ func (fofa *Fofa) Query(query string, batch int, limit int) (<-chan []FofaResult
 		defer close(results)
 
 		var numberOfResults int
-		page := 1
+		var next = ""
 		for {
 			fofaRequest := &FofaRequest{
 				Query:  query,
 				Fields: Fields,
 				Size:   batch,
-				Page:   page,
+				Next:   next,
 			}
 			fofaResponse, err := fofa.query(URL, fofaRequest)
 			if err != nil {
@@ -59,9 +60,10 @@ func (fofa *Fofa) Query(query string, batch int, limit int) (<-chan []FofaResult
 					IP:             result[0],
 					Port:           result[1],
 					Host:           result[2],
-					Country:        result[3],
-					Region:         result[4],
-					ASOrganization: result[5],
+					Domain:         result[3],
+					Country:        result[4],
+					Region:         result[5],
+					ASOrganization: result[6],
 				})
 			}
 			results <- res
@@ -70,7 +72,7 @@ func (fofa *Fofa) Query(query string, batch int, limit int) (<-chan []FofaResult
 				break
 			}
 			numberOfResults += len(fofaResponse.Results)
-			page++
+			next = fofaResponse.Next
 
 		}
 		finish <- struct{}{}
@@ -81,7 +83,7 @@ func (fofa *Fofa) Query(query string, batch int, limit int) (<-chan []FofaResult
 
 func (fofa *Fofa) query(URL string, fofaRequest *FofaRequest) (*FofaResponse, error) {
 	base64Query := base64.StdEncoding.EncodeToString([]byte(fofaRequest.Query))
-	fofaURL := fmt.Sprintf(URL, fofa.Email, fofa.Key, base64Query, Fields, fofaRequest.Page, fofaRequest.Size)
+	fofaURL := fmt.Sprintf(URL, fofa.Email, fofa.Key, base64Query, Fields, url.QueryEscape(fofaRequest.Next), fofaRequest.Size)
 	response, err := http.Get(fofaURL)
 	if err != nil {
 		return nil, err
@@ -101,7 +103,7 @@ func (fofa *Fofa) query(URL string, fofaRequest *FofaRequest) (*FofaResponse, er
 type FofaRequest struct {
 	Query  string
 	Fields string
-	Page   int
+	Next   string
 	Size   int
 	Full   string
 }
@@ -111,7 +113,7 @@ type FofaResponse struct {
 	Error   bool       `json:"error"`
 	ErrMsg  string     `json:"errmsg"`
 	Mode    string     `json:"mode"`
-	Page    int        `json:"page"`
+	Next    string     `json:"next"`
 	Query   string     `json:"query"`
 	Results [][]string `json:"results"`
 	Size    int        `json:"size"`
@@ -121,6 +123,7 @@ type FofaResult struct {
 	IP             string `json:"ip"`
 	Port           string `json:"port"`
 	Host           string `json:"host"`
+	Domain         string `json:"domain"`
 	Country        string `json:"country"`
 	Region         string `json:"region"`
 	ASOrganization string `json:"as_organization"`

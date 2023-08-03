@@ -7,6 +7,7 @@ import (
 	"git.yoshino-s.xyz/yoshino-s/derperer/fofa"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 var (
@@ -18,8 +19,10 @@ var (
 var serverCmd = &cobra.Command{
 	Use: "server",
 	Run: func(cmd *cobra.Command, args []string) {
-
-		derperer := derperer.NewDerperer(derpererConfig)
+		derperer, err := derperer.NewDerperer(derpererConfig)
+		if err != nil {
+			zap.L().Fatal("failed to create derperer", zap.Error(err))
+		}
 		derperer.Start()
 	},
 }
