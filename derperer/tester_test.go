@@ -21,8 +21,8 @@ var derpMap = &tailcfg.DERPMap{
 				{
 					Name:     "derp1.webrtc.win",
 					RegionID: 1,
-					HostName: "cn-beijing-01.dayunet.com",
-					IPv4:     "59.110.168.130",
+					HostName: "https://derp.anxincloud.cn",
+					IPv4:     "123.249.97.214",
 					DERPPort: 443,
 				},
 			},

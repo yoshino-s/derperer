@@ -63,12 +63,11 @@ func Convert(result []fofa.FofaResult) (*tailcfg.DERPMap, error) {
 		regionID := getId(regionName)
 
 		node := &tailcfg.DERPNode{
-			Name:             nodeName,
-			RegionID:         regionID,
-			HostName:         host,
-			IPv4:             r.IP,
-			InsecureForTests: true,
-			DERPPort:         port,
+			Name:     nodeName,
+			RegionID: regionID,
+			HostName: host,
+			IPv4:     r.IP,
+			DERPPort: port,
 		}
 
 		if _, ok := derpMap.Regions[regionID]; !ok {
