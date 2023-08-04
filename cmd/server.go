@@ -34,7 +34,7 @@ func init() {
 
 	serverCmd.PersistentFlags().StringVarP(&derpererConfig.FofaClient.Email, "fofa-email", "e", "", "fofa email")
 	serverCmd.PersistentFlags().StringVarP(&derpererConfig.FofaClient.Key, "fofa-key", "k", "", "fofa key")
-	serverCmd.PersistentFlags().IntVarP(&derpererConfig.FetchBatch, "batch", "b", 10, "batch")
+	serverCmd.PersistentFlags().IntVarP(&derpererConfig.FetchBatch, "batch", "b", 20, "batch")
 	serverCmd.PersistentFlags().StringVarP(&derpererConfig.Address, "address", "a", ":8080", "address")
 	serverCmd.PersistentFlags().DurationVarP(&derpererConfig.UpdateInterval, "update-interval", "u", 10*time.Minute, "update interval")
 	serverCmd.PersistentFlags().DurationVarP(&derpererConfig.FetchInterval, "fetch-interval", "f", 4*time.Hour, "fetch interval")
