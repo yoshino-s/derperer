@@ -132,7 +132,9 @@ func (d *Derperer) getDerpMap(ctx iris.Context) {
 }
 
 func (d *Derperer) getDayuNetDerpMap(ctx iris.Context) {
-	derpMap := d.derpMap.Clone()
+	derpMap := &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{},
+	}
 	for _, region := range derpMap.Regions {
 		nodes := []*tailcfg.DERPNode{}
 		for i, node := range region.Nodes {
@@ -140,13 +142,22 @@ func (d *Derperer) getDayuNetDerpMap(ctx iris.Context) {
 				nodes = append(nodes, region.Nodes[i])
 			}
 		}
-		region.Nodes = nodes
+		if len(nodes) != 0 {
+			derpMap.Regions[region.RegionID] = &tailcfg.DERPRegion{
+				RegionID:   region.RegionID,
+				RegionCode: region.RegionCode,
+				RegionName: region.RegionName,
+				Nodes:      nodes,
+			}
+		}
 	}
 	ctx.JSON(derpMap)
 }
 
 func (d *Derperer) getClaySolutionDerpMap(ctx iris.Context) {
-	derpMap := d.derpMap.Clone()
+	derpMap := &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{},
+	}
 	for _, region := range derpMap.Regions {
 		nodes := []*tailcfg.DERPNode{}
 		for i, node := range region.Nodes {
@@ -154,7 +165,14 @@ func (d *Derperer) getClaySolutionDerpMap(ctx iris.Context) {
 				nodes = append(nodes, region.Nodes[i])
 			}
 		}
-		region.Nodes = nodes
+		if len(nodes) != 0 {
+			derpMap.Regions[region.RegionID] = &tailcfg.DERPRegion{
+				RegionID:   region.RegionID,
+				RegionCode: region.RegionCode,
+				RegionName: region.RegionName,
+				Nodes:      nodes,
+			}
+		}
 	}
 	ctx.JSON(derpMap)
 }
