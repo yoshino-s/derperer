@@ -126,8 +126,8 @@ func (t *tester) Test(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 				defer wg.Done()
 				err := t.testDerpNode(ctx, node, false)
 				if err != nil {
-					zap.L().Debug("Node Error", zap.Any("dest", region.RegionCode), zap.Error(err))
-					removeRegion(region.RegionName)
+					zap.L().Debug("Node Error", zap.Any("dest", node.Name), zap.Error(err))
+					removeRegion(node.Name)
 				}
 			}(node)
 		}
