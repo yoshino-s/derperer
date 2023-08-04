@@ -2,23 +2,22 @@ package derperer
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"git.yoshino-s.xyz/yoshino-s/derperer/fofa"
 	"github.com/kataras/iris/v12"
 	"go.uber.org/zap"
-	"tailscale.com/net/netmon"
 	"tailscale.com/tailcfg"
 )
 
 type Derperer struct {
 	DerpererConfig
 	*tester
-	app        *iris.Application
-	rawResults [][]fofa.FofaResult
-	derpMap    tailcfg.DERPMap
-	netMon     *netmon.Monitor
-	ctx        context.Context
+	app     *iris.Application
+	derpMap tailcfg.DERPMap
+	ctx     context.Context
+	mu      *sync.Mutex
 }
 
 type DerpererConfig struct {
@@ -32,11 +31,13 @@ type DerpererConfig struct {
 
 func NewDerperer(config DerpererConfig) (*Derperer, error) {
 	app := iris.New()
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx := context.Background()
 	t, err := newTester(
 		ctx,
 		zap.L().Sugar().Infof,
 		config.LatencyLimit,
+		10*time.Second,
+		2*time.Second,
 	)
 	if err != nil {
 		return nil, err
@@ -45,9 +46,11 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 		DerpererConfig: config,
 		tester:         t,
 		app:            app,
-		rawResults:     [][]fofa.FofaResult{},
-		derpMap:        tailcfg.DERPMap{},
-		ctx:            ctx,
+		derpMap: tailcfg.DERPMap{
+			Regions: map[int]*tailcfg.DERPRegion{},
+		},
+		ctx: ctx,
+		mu:  &sync.Mutex{},
 	}
 
 	app.Get("/derp.json", derperer.getDerpMap)
@@ -57,65 +60,59 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 
 func (d *Derperer) FetchFofaData() {
 	zap.L().Info("fetching fofa")
-	rawResults := [][]fofa.FofaResult{}
-	res, finish, err := d.FofaClient.Query("fid=\"QSk7WHdA/IWH9oZf9xszuw==\"", d.FetchBatch, -1)
+	res, finish, err := d.FofaClient.Query(`body="<a href=\"https://pkg.go.dev/tailscale.com/derp\">DERP</a>"`, d.FetchBatch, -1)
 	if err != nil {
 		zap.L().Error("failed to query fofa", zap.Error(err))
 	}
-	total := 0
 	func() {
 		for {
 			select {
 			case r := <-res:
-				rawResults = append(rawResults, r)
-				total += len(r)
+				zap.L().Info("fetched fofa", zap.Int("count", len(r)))
+				d.UpdateDERPMap(r)
 			case <-finish:
 				return
 			}
 		}
 	}()
-	zap.L().Info("fetched fofa", zap.Int("result_count", total))
-	d.rawResults = rawResults
 }
 
-func (d *Derperer) UpdateDERPMap() {
-	fullDERPMap := tailcfg.DERPMap{
-		Regions: map[int]*tailcfg.DERPRegion{},
+func (d *Derperer) UpdateDERPMap(rawResult []fofa.FofaResult) {
+	derpMap, err := Convert(rawResult)
+	if err != nil {
+		zap.L().Error("failed to convert", zap.Error(err))
+		return
 	}
-	for _, rawResult := range d.rawResults {
-		derpMap, err := Convert(rawResult)
-		if err != nil {
-			zap.L().Error("failed to convert", zap.Error(err))
-			continue
-		}
-		newDerpMap := d.Test(&derpMap)
-		for regionID, region := range newDerpMap.Regions {
-			if _, ok := fullDERPMap.Regions[regionID]; !ok {
-				fullDERPMap.Regions[regionID] = region
-			} else {
-				fullDERPMap.Regions[regionID].Nodes = append(fullDERPMap.Regions[regionID].Nodes, region.Nodes...)
-			}
-		}
+	newDerpMap := d.Test(&derpMap)
 
+	d.mu.Lock()
+	for regionID, region := range newDerpMap.Regions {
+		if _, ok := d.derpMap.Regions[regionID]; !ok {
+			d.derpMap.Regions[regionID] = region
+		} else {
+			d.derpMap.Regions[regionID].Nodes = append(d.derpMap.Regions[regionID].Nodes, region.Nodes...)
+		}
 	}
-	d.derpMap = fullDERPMap
-	zap.L().Info("updated derp map", zap.Int("region_count", len(fullDERPMap.Regions)))
+	d.mu.Unlock()
 }
 
 func (d *Derperer) Start() error {
-
 	go func() {
 		for {
-			d.FetchFofaData()
-			d.UpdateDERPMap()
-			time.Sleep(d.FetchInterval)
+			d.mu.Lock()
+			derpMap := d.derpMap.Clone()
+			zap.L().Info("testing derp map")
+			d.derpMap = *d.Test(derpMap)
+			zap.L().Info("tested derp map", zap.Int("count", len(derpMap.Regions)-len(d.derpMap.Regions)))
+			d.mu.Unlock()
+			time.Sleep(d.UpdateInterval)
 		}
 	}()
 
 	go func() {
 		for {
-			d.UpdateDERPMap()
-			time.Sleep(d.UpdateInterval)
+			d.FetchFofaData()
+			time.Sleep(d.FetchInterval)
 		}
 	}()
 

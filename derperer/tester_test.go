@@ -19,10 +19,10 @@ var derpMap = &tailcfg.DERPMap{
 			RegionName: "test",
 			Nodes: []*tailcfg.DERPNode{
 				{
-					Name:     "tailscale.jvmkit.com",
+					Name:     "derp1.webrtc.win",
 					RegionID: 1,
-					HostName: "tailscale.jvmkit.com",
-					IPv4:     "78.46.187.22",
+					HostName: "cn-beijing-01.dayunet.com",
+					IPv4:     "59.110.168.130",
 					DERPPort: 443,
 				},
 			},
