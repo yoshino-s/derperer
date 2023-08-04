@@ -6,7 +6,7 @@ ENV VERSION=${VERSION}
 WORKDIR /src
 COPY . .
 RUN go env -w GOPROXY=https://goproxy.cn,direct
-RUN CGO_ENABLED=0 go build -o /main --ldflags "-w -extldflags '-static' -X cmd.Version=${VERSION:-dev}" .
+RUN CGO_ENABLED=0 go build -o /main --ldflags "-w -extldflags '-static' -X git.yoshino-s.xyz/yoshino-s/derperer/cmd.Version=${VERSION:-dev}" .
 
 # Final image.
 FROM alpine:latest
