@@ -13,6 +13,14 @@ import (
 var id = 114000
 var idMap = map[string]int{}
 
+func CountDERPMap(derpMap *tailcfg.DERPMap) int {
+	count := 0
+	for _, region := range derpMap.Regions {
+		count += len(region.Nodes)
+	}
+	return count
+}
+
 func getId(ip string) int {
 	if id, ok := idMap[ip]; ok {
 		return id
@@ -22,8 +30,8 @@ func getId(ip string) int {
 	return id
 }
 
-func Convert(result []fofa.FofaResult) (tailcfg.DERPMap, error) {
-	derpMap := tailcfg.DERPMap{
+func Convert(result []fofa.FofaResult) (*tailcfg.DERPMap, error) {
+	derpMap := &tailcfg.DERPMap{
 		Regions: map[int]*tailcfg.DERPRegion{},
 	}
 
@@ -45,12 +53,14 @@ func Convert(result []fofa.FofaResult) (tailcfg.DERPMap, error) {
 			continue
 		}
 
-		name := fmt.Sprintf("%s:%d", host, port)
+		nodeName := fmt.Sprintf("%s:%d", host, port)
 
-		regionID := getId(fmt.Sprintf("%s:%d", r.IP, port))
+		regionName := fmt.Sprintf("%s-%s-%s", r.ASOrganization, r.Country, r.Region)
+
+		regionID := getId(regionName)
 
 		node := &tailcfg.DERPNode{
-			Name:             name,
+			Name:             nodeName,
 			RegionID:         regionID,
 			HostName:         host,
 			IPv4:             r.IP,
@@ -61,18 +71,23 @@ func Convert(result []fofa.FofaResult) (tailcfg.DERPMap, error) {
 		if _, ok := derpMap.Regions[regionID]; !ok {
 			derpMap.Regions[regionID] = &tailcfg.DERPRegion{
 				RegionID:   regionID,
-				RegionName: r.IP,
+				RegionName: regionName,
+				RegionCode: regionName,
 				Nodes: []*tailcfg.DERPNode{
 					node,
 				},
 			}
 		} else {
-			prevNode := derpMap.Regions[regionID].Nodes[0]
-			if prevNode.IPv4 == prevNode.HostName {
-				// prevNode is a ip, replace
-				derpMap.Regions[regionID].Nodes[0] = node
-			} else {
-				zap.L().Debug("duplicate region", zap.String("region", name), zap.String("prev", prevNode.Name))
+			replaced := false
+			for idx, prevNode := range derpMap.Regions[regionID].Nodes {
+				if prevNode.IPv4 == prevNode.HostName && prevNode.IPv4 == node.IPv4 && prevNode.DERPPort == node.DERPPort {
+					// prevNode is a ip, replace
+					derpMap.Regions[regionID].Nodes[idx] = node
+					replaced = true
+				}
+			}
+			if !replaced {
+				derpMap.Regions[regionID].Nodes = append(derpMap.Regions[regionID].Nodes, node)
 			}
 		}
 	}
