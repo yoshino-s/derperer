@@ -11,6 +11,8 @@ import (
 	"tailscale.com/tailcfg"
 )
 
+const FINGERPRINT = `"<h1>DERP</h1>" && cert.is_valid=true && cert.is_match=true && is_domain=true`
+
 type Derperer struct {
 	DerpererConfig
 	*tester
@@ -26,7 +28,9 @@ type DerpererConfig struct {
 	FetchInterval  time.Duration
 	FofaClient     fofa.Fofa
 	LatencyLimit   time.Duration
+	ProbeTimeout   time.Duration
 	FetchBatch     int
+	TestBatch      int
 }
 
 func NewDerperer(config DerpererConfig) (*Derperer, error) {
@@ -36,8 +40,7 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 		ctx,
 		zap.L().Sugar().Infof,
 		config.LatencyLimit,
-		10*time.Second,
-		2*time.Second,
+		config.ProbeTimeout,
 	)
 	if err != nil {
 		return nil, err
@@ -60,16 +63,20 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 
 func (d *Derperer) FetchFofaData() {
 	zap.L().Info("fetching fofa")
-	res, finish, err := d.FofaClient.Query(`body="<a href=\"https://pkg.go.dev/tailscale.com/derp\">DERP</a>"`, d.FetchBatch, -1)
+	res, finish, err := d.FofaClient.Query(FINGERPRINT, d.FetchBatch, -1)
 	if err != nil {
 		zap.L().Error("failed to query fofa", zap.Error(err))
 	}
+	buf := make([]fofa.FofaResult, 0, d.TestBatch)
 	func() {
 		for {
 			select {
 			case r := <-res:
-				zap.L().Info("fetched fofa", zap.Int("count", len(r)))
-				d.UpdateDERPMap(r)
+				buf = append(buf, r)
+				if len(buf) == d.TestBatch {
+					d.UpdateDERPMap(buf)
+					buf = make([]fofa.FofaResult, 0, d.TestBatch)
+				}
 			case <-finish:
 				return
 			}

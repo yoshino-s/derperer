@@ -25,40 +25,29 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/logger"
 	"tailscale.com/types/nettype"
-	"tailscale.com/util/cmpx"
-)
-
-type probeProto uint8
-
-const (
-	probeIPv4  probeProto = iota // STUN IPv4
-	probeIPv6                    // STUN IPv6
-	probeHTTPS                   // HTTPS
 )
 
 type tester struct {
-	ctx                 context.Context
-	Logf                logger.Logf
-	NetMon              *netmon.Monitor
-	Pinger              *ping.Pinger
-	overallProbeTimeout time.Duration
-	icmpProbeTimeout    time.Duration
-	latencyLimit        time.Duration
+	ctx          context.Context
+	Logf         logger.Logf
+	NetMon       *netmon.Monitor
+	Pinger       *ping.Pinger
+	probeTimeout time.Duration
+	latencyLimit time.Duration
 }
 
-func newTester(ctx context.Context, logf logger.Logf, latencyLimit time.Duration, overallProbeTimeout time.Duration, icmpProbeTimeout time.Duration) (*tester, error) {
+func newTester(ctx context.Context, logf logger.Logf, latencyLimit time.Duration, probeTimeout time.Duration) (*tester, error) {
 	netMon, err := netmon.New(logf)
 	if err != nil {
 		return nil, err
 	}
 	return &tester{
-		ctx:                 ctx,
-		Logf:                logf,
-		Pinger:              ping.New(ctx, logf, netns.Listener(logf, netMon)),
-		NetMon:              netMon,
-		overallProbeTimeout: overallProbeTimeout,
-		icmpProbeTimeout:    icmpProbeTimeout,
-		latencyLimit:        latencyLimit,
+		ctx:          ctx,
+		Logf:         logf,
+		Pinger:       ping.New(ctx, logf, netns.Listener(logf, netMon)),
+		NetMon:       netMon,
+		probeTimeout: probeTimeout,
+		latencyLimit: latencyLimit,
 	}, nil
 }
 
@@ -72,6 +61,7 @@ func flattenDEPRMap(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 			res.Regions[idx] = &tailcfg.DERPRegion{
 				RegionID:   idx,
 				RegionName: fmt.Sprintf("%d$$$%s", regionID, node.Name),
+				RegionCode: node.Name,
 				Nodes:      []*tailcfg.DERPNode{node},
 			}
 			idx++
@@ -116,42 +106,35 @@ func (t *tester) Test(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 		}
 	}
 
+	wg.Add(CountDERPMap(flattenedMap) + len(flattenedMap.Regions))
+	ctx, cancel := context.WithCancel(t.ctx)
+
 	for _, region := range flattenedMap.Regions {
-		wg.Add(2 + len(region.Nodes))
 		go func(region *tailcfg.DERPRegion) {
 			defer wg.Done()
-			latency, err := t.measureICMPLatency(t.ctx, region, t.Pinger)
+			latency, _, err := t.measureHTTPSLatency(ctx, region)
 			if err != nil {
-				zap.L().Debug("ICMP Error", zap.Any("region", region.RegionName), zap.Error(err))
+				zap.L().Debug("HTTPS Error", zap.Any("dest", region.RegionCode), zap.Error(err))
 				removeRegion(region.RegionName)
 			} else if latency > t.latencyLimit {
-				zap.L().Debug("ICMP Latency", zap.Any("region", region.RegionName), zap.Duration("latency", latency))
-				removeRegion(region.RegionName)
-			}
-		}(region)
-		go func(region *tailcfg.DERPRegion) {
-			defer wg.Done()
-			latency, _, err := t.measureHTTPSLatency(t.ctx, region)
-			if err != nil {
-				zap.L().Debug("HTTPS Error", zap.Any("region", region.RegionName), zap.Error(err))
-				removeRegion(region.RegionName)
-			} else if latency > t.latencyLimit {
-				zap.L().Debug("HTTPS Latency", zap.Any("region", region.RegionName), zap.Duration("latency", latency))
+				zap.L().Debug("HTTPS Latency", zap.Any("dest", region.RegionCode), zap.Duration("latency", latency))
 				removeRegion(region.RegionName)
 			}
 		}(region)
 		for _, node := range region.Nodes {
 			go func(node *tailcfg.DERPNode) {
 				defer wg.Done()
-				err := t.testDerpNode(t.ctx, node, false)
+				err := t.testDerpNode(ctx, node, false)
 				if err != nil {
-					zap.L().Debug("Node Error", zap.Any("region", region.RegionName), zap.Error(err))
+					zap.L().Debug("Node Error", zap.Any("dest", region.RegionCode), zap.Error(err))
 					removeRegion(region.RegionName)
 				}
 			}(node)
 		}
-		wg.Wait()
 	}
+
+	wg.Wait()
+	cancel()
 
 	zap.L().Info("End Test", zap.Int("regionCount", CountDERPMap(newDerpMap)))
 
@@ -160,7 +143,7 @@ func (t *tester) Test(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 
 func (t *tester) measureHTTPSLatency(ctx context.Context, reg *tailcfg.DERPRegion) (time.Duration, netip.Addr, error) {
 	var result httpstat.Result
-	ctx, cancel := context.WithTimeout(httpstat.WithHTTPStat(ctx, &result), t.overallProbeTimeout)
+	ctx, cancel := context.WithTimeout(httpstat.WithHTTPStat(ctx, &result), t.probeTimeout)
 	defer cancel()
 
 	var ip netip.Addr
@@ -229,104 +212,10 @@ func (t *tester) measureHTTPSLatency(ctx context.Context, reg *tailcfg.DERPRegio
 	return result.ServerProcessing, ip, nil
 }
 
-func (t *tester) measureICMPLatency(ctx context.Context, reg *tailcfg.DERPRegion, p *ping.Pinger) (time.Duration, error) {
-	ctx, cancel := context.WithTimeout(ctx, t.icmpProbeTimeout)
+func (t *tester) testDerpNode(ctx context.Context, derpNode *tailcfg.DERPNode, ipv6 bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), t.probeTimeout)
 	defer cancel()
 
-	if len(reg.Nodes) == 0 {
-		return 0, fmt.Errorf("no nodes for region %d (%v)", reg.RegionID, reg.RegionCode)
-	}
-
-	// Try pinging the first node in the region
-	node := reg.Nodes[0]
-
-	// Get the IPAddr by asking for the UDP address that we would use for
-	// STUN and then using that IP.
-	//
-	// TODO(andrew-d): this is a bit ugly
-	nodeAddr := t.nodeAddr(ctx, node, probeIPv4)
-	if !nodeAddr.IsValid() {
-		return 0, fmt.Errorf("no address for node %v", node.Name)
-	}
-	addr := &net.IPAddr{
-		IP:   net.IP(nodeAddr.Addr().AsSlice()),
-		Zone: nodeAddr.Addr().Zone(),
-	}
-
-	// Use the unique node.Name field as the packet data to reduce the
-	// likelihood that we get a mismatched echo response.
-	return p.Send(ctx, addr, []byte(node.Name))
-}
-
-func (t *tester) nodeAddr(ctx context.Context, n *tailcfg.DERPNode, proto probeProto) (ap netip.AddrPort) {
-	port := cmpx.Or(n.STUNPort, 3478)
-	if port < 0 || port > 1<<16-1 {
-		return
-	}
-	if n.STUNTestIP != "" {
-		ip, err := netip.ParseAddr(n.STUNTestIP)
-		if err != nil {
-			return
-		}
-		if proto == probeIPv4 && ip.Is6() {
-			return
-		}
-		if proto == probeIPv6 && ip.Is4() {
-			return
-		}
-		return netip.AddrPortFrom(ip, uint16(port))
-	}
-
-	switch proto {
-	case probeIPv4:
-		if n.IPv4 != "" {
-			ip, _ := netip.ParseAddr(n.IPv4)
-			if !ip.Is4() {
-				return
-			}
-			return netip.AddrPortFrom(ip, uint16(port))
-		}
-	case probeIPv6:
-		if n.IPv6 != "" {
-			ip, _ := netip.ParseAddr(n.IPv6)
-			if !ip.Is6() {
-				return
-			}
-			return netip.AddrPortFrom(ip, uint16(port))
-		}
-	default:
-		return
-	}
-
-	// The default lookup function if we don't set UseDNSCache is to use net.DefaultResolver.
-	lookupIPAddr := func(ctx context.Context, host string) ([]netip.Addr, error) {
-		addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-		if err != nil {
-			return nil, err
-		}
-
-		var naddrs []netip.Addr
-		for _, addr := range addrs {
-			na, ok := netip.AddrFromSlice(addr.IP)
-			if !ok {
-				continue
-			}
-			naddrs = append(naddrs, na.Unmap())
-		}
-		return naddrs, nil
-	}
-
-	probeIsV4 := proto == probeIPv4
-	addrs, _ := lookupIPAddr(ctx, n.HostName)
-	for _, a := range addrs {
-		if (a.Is4() && probeIsV4) || (a.Is6() && !probeIsV4) {
-			return netip.AddrPortFrom(a, uint16(port))
-		}
-	}
-	return
-}
-
-func (t *tester) testDerpNode(ctx context.Context, derpNode *tailcfg.DERPNode, ipv6 bool) error {
 	var (
 		dialer net.Dialer
 	)
@@ -337,9 +226,6 @@ func (t *tester) testDerpNode(ctx context.Context, derpNode *tailcfg.DERPNode, i
 			return fmt.Errorf("error creating IPv4 STUN listener: %v", err)
 		}
 		defer u4.Close()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
 
 		var addr netip.Addr
 		if derpNode.IPv4 != "" {
@@ -431,8 +317,7 @@ func (t *tester) testDerpNode(ctx context.Context, derpNode *tailcfg.DERPNode, i
 
 		// Upgrade to TLS and verify that works properly.
 		tlsConn := tls.Client(conn, &tls.Config{
-			ServerName:         firstNonzero(derpNode.CertName, derpNode.HostName),
-			InsecureSkipVerify: true,
+			ServerName: firstNonzero(derpNode.CertName, derpNode.HostName),
 		})
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			v4Error = fmt.Errorf("error upgrading connection to node %q @ %q to TLS over IPv4: %w", derpNode.HostName, addr, err)
