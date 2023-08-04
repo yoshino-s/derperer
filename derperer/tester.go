@@ -63,7 +63,7 @@ func (t *tester) Test(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 
 	newDerpMap := derpMap.Clone()
 
-	zap.L().Debug("Start Test", zap.Int("regionCount", len(derpMap.Regions)))
+	zap.L().Info("Start Test", zap.Int("regionCount", len(derpMap.Regions)))
 
 	removeRegion := func(regionID int) {
 		mu.Lock()
@@ -100,7 +100,7 @@ func (t *tester) Test(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 		time.Sleep(1 * time.Second)
 	}
 
-	zap.L().Debug("End Test", zap.Int("regionCount", len(newDerpMap.Regions)))
+	zap.L().Info("End Test", zap.Int("regionCount", len(newDerpMap.Regions)))
 
 	return newDerpMap
 }
