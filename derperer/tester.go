@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,31 +62,71 @@ func newTester(ctx context.Context, logf logger.Logf, latencyLimit time.Duration
 	}, nil
 }
 
+func flattenDEPRMap(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
+	res := &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{},
+	}
+	idx := 0
+	for regionID, region := range derpMap.Regions {
+		for _, node := range region.Nodes {
+			res.Regions[idx] = &tailcfg.DERPRegion{
+				RegionID:   idx,
+				RegionName: fmt.Sprintf("%d$$$%s", regionID, node.Name),
+				Nodes:      []*tailcfg.DERPNode{node},
+			}
+			idx++
+		}
+	}
+	return res
+}
+
 func (t *tester) Test(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 	wg := &sync.WaitGroup{}
 	mu := &sync.Mutex{}
 
 	newDerpMap := derpMap.Clone()
+	flattenedMap := flattenDEPRMap(derpMap)
 
-	zap.L().Info("Start Test", zap.Int("regionCount", len(derpMap.Regions)))
+	zap.L().Info("Start Test", zap.Int("regionCount", CountDERPMap(derpMap)))
 
-	removeRegion := func(regionID int) {
+	removeRegion := func(regionName string) {
 		mu.Lock()
 		defer mu.Unlock()
-		delete(newDerpMap.Regions, regionID)
+		res := strings.Split(regionName, "$$$")
+		if len(res) != 2 {
+			return
+		}
+		regionID, err := strconv.Atoi(res[0])
+		if err != nil {
+			return
+		}
+		nodeName := res[1]
+		region := newDerpMap.Regions[regionID]
+		if region == nil {
+			return
+		}
+		for i, node := range region.Nodes {
+			if node.Name == nodeName {
+				region.Nodes = append(region.Nodes[:i], region.Nodes[i+1:]...)
+				break
+			}
+		}
+		if len(region.Nodes) == 0 {
+			delete(newDerpMap.Regions, regionID)
+		}
 	}
 
-	for _, region := range derpMap.Regions {
+	for _, region := range flattenedMap.Regions {
 		wg.Add(2 + len(region.Nodes))
 		go func(region *tailcfg.DERPRegion) {
 			defer wg.Done()
 			latency, err := t.measureICMPLatency(t.ctx, region, t.Pinger)
 			if err != nil {
 				zap.L().Debug("ICMP Error", zap.Any("region", region.RegionName), zap.Error(err))
-				removeRegion(region.RegionID)
+				removeRegion(region.RegionName)
 			} else if latency > t.latencyLimit {
 				zap.L().Debug("ICMP Latency", zap.Any("region", region.RegionName), zap.Duration("latency", latency))
-				removeRegion(region.RegionID)
+				removeRegion(region.RegionName)
 			}
 		}(region)
 		go func(region *tailcfg.DERPRegion) {
@@ -93,10 +134,10 @@ func (t *tester) Test(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 			latency, _, err := t.measureHTTPSLatency(t.ctx, region)
 			if err != nil {
 				zap.L().Debug("HTTPS Error", zap.Any("region", region.RegionName), zap.Error(err))
-				removeRegion(region.RegionID)
+				removeRegion(region.RegionName)
 			} else if latency > t.latencyLimit {
 				zap.L().Debug("HTTPS Latency", zap.Any("region", region.RegionName), zap.Duration("latency", latency))
-				removeRegion(region.RegionID)
+				removeRegion(region.RegionName)
 			}
 		}(region)
 		for _, node := range region.Nodes {
@@ -105,14 +146,14 @@ func (t *tester) Test(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 				err := t.testDerpNode(t.ctx, node, false)
 				if err != nil {
 					zap.L().Debug("Node Error", zap.Any("region", region.RegionName), zap.Error(err))
-					removeRegion(region.RegionID)
+					removeRegion(region.RegionName)
 				}
 			}(node)
 		}
 		wg.Wait()
 	}
 
-	zap.L().Info("End Test", zap.Int("regionCount", len(newDerpMap.Regions)))
+	zap.L().Info("End Test", zap.Int("regionCount", CountDERPMap(newDerpMap)))
 
 	return newDerpMap
 }

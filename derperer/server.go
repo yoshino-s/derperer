@@ -15,7 +15,7 @@ type Derperer struct {
 	DerpererConfig
 	*tester
 	app     *iris.Application
-	derpMap tailcfg.DERPMap
+	derpMap *tailcfg.DERPMap
 	ctx     context.Context
 	mu      *sync.Mutex
 }
@@ -46,7 +46,7 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 		DerpererConfig: config,
 		tester:         t,
 		app:            app,
-		derpMap: tailcfg.DERPMap{
+		derpMap: &tailcfg.DERPMap{
 			Regions: map[int]*tailcfg.DERPRegion{},
 		},
 		ctx: ctx,
@@ -83,7 +83,7 @@ func (d *Derperer) UpdateDERPMap(rawResult []fofa.FofaResult) {
 		zap.L().Error("failed to convert", zap.Error(err))
 		return
 	}
-	newDerpMap := d.Test(&derpMap)
+	newDerpMap := d.Test(derpMap)
 
 	d.mu.Lock()
 	for regionID, region := range newDerpMap.Regions {
@@ -101,9 +101,7 @@ func (d *Derperer) Start() error {
 		for {
 			d.mu.Lock()
 			derpMap := d.derpMap.Clone()
-			zap.L().Info("testing derp map")
-			d.derpMap = *d.Test(derpMap)
-			zap.L().Info("tested derp map", zap.Int("count", len(derpMap.Regions)-len(d.derpMap.Regions)))
+			d.derpMap = d.Test(derpMap)
 			d.mu.Unlock()
 			time.Sleep(d.UpdateInterval)
 		}
