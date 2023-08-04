@@ -135,7 +135,7 @@ func (d *Derperer) getDayuNetDerpMap(ctx iris.Context) {
 	derpMap := &tailcfg.DERPMap{
 		Regions: map[int]*tailcfg.DERPRegion{},
 	}
-	for _, region := range derpMap.Regions {
+	for _, region := range d.derpMap.Regions {
 		nodes := []*tailcfg.DERPNode{}
 		for i, node := range region.Nodes {
 			if strings.HasSuffix(node.Name, "dayunet.com") {
@@ -158,7 +158,7 @@ func (d *Derperer) getClaySolutionDerpMap(ctx iris.Context) {
 	derpMap := &tailcfg.DERPMap{
 		Regions: map[int]*tailcfg.DERPRegion{},
 	}
-	for _, region := range derpMap.Regions {
+	for _, region := range d.derpMap.Regions {
 		nodes := []*tailcfg.DERPNode{}
 		for i, node := range region.Nodes {
 			if strings.HasSuffix(node.Name, "claysolution.com") {
