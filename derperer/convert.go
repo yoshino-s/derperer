@@ -3,6 +3,7 @@ package derperer
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"strconv"
 
 	"git.yoshino-s.xyz/yoshino-s/derperer/fofa"
@@ -42,10 +43,12 @@ func Convert(result []fofa.FofaResult) (*tailcfg.DERPMap, error) {
 			continue
 		}
 
-		host := r.Domain
-		if host == "" {
-			host = r.IP
+		u, err := url.Parse(r.Host)
+		if err != nil || u.Host == "" {
+			zap.L().Debug("invalid host", zap.String("host", r.Host))
+			continue
 		}
+		host := u.Hostname()
 
 		port, err := strconv.Atoi(r.Port)
 		if err != nil {
@@ -53,7 +56,7 @@ func Convert(result []fofa.FofaResult) (*tailcfg.DERPMap, error) {
 			continue
 		}
 
-		nodeName := fmt.Sprintf("%s:%d", host, port)
+		nodeName := u.String()
 
 		regionName := fmt.Sprintf("%s-%s-%s", r.ASOrganization, r.Country, r.Region)
 

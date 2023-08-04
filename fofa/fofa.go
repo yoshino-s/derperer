@@ -24,12 +24,12 @@ type Fofa struct {
 	Key   string `json:"key"`
 }
 
-func (fofa *Fofa) Query(query string, batch int, limit int) (<-chan []FofaResult, <-chan struct{}, error) {
+func (fofa *Fofa) Query(query string, batch int, limit int) (<-chan FofaResult, <-chan struct{}, error) {
 	if fofa.Email == "" || fofa.Key == "" {
 		return nil, nil, errors.New("empty fofa keys")
 	}
 
-	results := make(chan []FofaResult)
+	results := make(chan FofaResult)
 	finish := make(chan struct{})
 
 	go func() {
@@ -54,9 +54,8 @@ func (fofa *Fofa) Query(query string, batch int, limit int) (<-chan []FofaResult
 					break
 				}
 			}
-			res := make([]FofaResult, 0, len(fofaResponse.Results))
 			for _, result := range fofaResponse.Results {
-				res = append(res, FofaResult{
+				results <- FofaResult{
 					IP:             result[0],
 					Port:           result[1],
 					Host:           result[2],
@@ -64,9 +63,9 @@ func (fofa *Fofa) Query(query string, batch int, limit int) (<-chan []FofaResult
 					Country:        result[4],
 					Region:         result[5],
 					ASOrganization: result[6],
-				})
+				}
 			}
-			results <- res
+
 			size := fofaResponse.Size
 			if size == 0 || (limit >= 0 && numberOfResults > limit) || len(fofaResponse.Results) == 0 || numberOfResults > size {
 				break
