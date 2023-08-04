@@ -2,6 +2,7 @@ package derperer
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -57,6 +58,8 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 	}
 
 	app.Get("/derp.json", derperer.getDerpMap)
+	app.Get("/derp.dayunet.json", derperer.getDayuNetDerpMap)
+	app.Get("/derp.claysolution.json", derperer.getClaySolutionDerpMap)
 
 	return derperer, nil
 }
@@ -126,4 +129,32 @@ func (d *Derperer) Start() error {
 
 func (d *Derperer) getDerpMap(ctx iris.Context) {
 	ctx.JSON(d.derpMap)
+}
+
+func (d *Derperer) getDayuNetDerpMap(ctx iris.Context) {
+	derpMap := d.derpMap.Clone()
+	for _, region := range derpMap.Regions {
+		nodes := []*tailcfg.DERPNode{}
+		for i, node := range region.Nodes {
+			if strings.HasSuffix(node.Name, "dayunet.com") {
+				nodes = append(nodes, region.Nodes[i])
+			}
+		}
+		region.Nodes = nodes
+	}
+	ctx.JSON(derpMap)
+}
+
+func (d *Derperer) getClaySolutionDerpMap(ctx iris.Context) {
+	derpMap := d.derpMap.Clone()
+	for _, region := range derpMap.Regions {
+		nodes := []*tailcfg.DERPNode{}
+		for i, node := range region.Nodes {
+			if strings.HasSuffix(node.Name, "claysolution.com") {
+				nodes = append(nodes, region.Nodes[i])
+			}
+		}
+		region.Nodes = nodes
+	}
+	ctx.JSON(derpMap)
 }
