@@ -58,8 +58,6 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 	}
 
 	app.Get("/derp.json", derperer.getDerpMap)
-	app.Get("/derp.dayunet.json", derperer.getDayuNetDerpMap)
-	app.Get("/derp.claysolution.json", derperer.getClaySolutionDerpMap)
 
 	return derperer, nil
 }
@@ -127,52 +125,36 @@ func (d *Derperer) Start() error {
 	return d.app.Listen(d.Address)
 }
 
+func contain(list []string, target string) bool {
+	for _, item := range list {
+		if item == target {
+			return true
+		}
+	}
+	return false
+}
+
 func (d *Derperer) getDerpMap(ctx iris.Context) {
-	ctx.JSON(d.derpMap)
-}
-
-func (d *Derperer) getDayuNetDerpMap(ctx iris.Context) {
-	derpMap := &tailcfg.DERPMap{
-		Regions: map[int]*tailcfg.DERPRegion{},
-	}
-	for _, region := range d.derpMap.Regions {
-		nodes := []*tailcfg.DERPNode{}
-		for i, node := range region.Nodes {
-			if strings.HasSuffix(node.Name, "dayunet.com") {
-				nodes = append(nodes, region.Nodes[i])
+	nodeName := strings.Split(ctx.URLParam("node"), ";")
+	if ctx.URLParam("node") != "" {
+		derpMap := &tailcfg.DERPMap{
+			Regions: map[int]*tailcfg.DERPRegion{},
+		}
+		for regionID, region := range d.derpMap.Regions {
+			for _, node := range region.Nodes {
+				if contain(nodeName, node.Name) {
+					if _, ok := derpMap.Regions[regionID]; !ok {
+						derpMap.Regions[regionID] = &tailcfg.DERPRegion{
+							RegionID: regionID,
+							Nodes:    []*tailcfg.DERPNode{},
+						}
+					}
+					derpMap.Regions[regionID].Nodes = append(derpMap.Regions[regionID].Nodes, node)
+				}
 			}
 		}
-		if len(nodes) != 0 {
-			derpMap.Regions[region.RegionID] = &tailcfg.DERPRegion{
-				RegionID:   region.RegionID,
-				RegionCode: region.RegionCode,
-				RegionName: region.RegionName,
-				Nodes:      nodes,
-			}
-		}
+		ctx.JSON(derpMap)
+	} else {
+		ctx.JSON(d.derpMap)
 	}
-	ctx.JSON(derpMap)
-}
-
-func (d *Derperer) getClaySolutionDerpMap(ctx iris.Context) {
-	derpMap := &tailcfg.DERPMap{
-		Regions: map[int]*tailcfg.DERPRegion{},
-	}
-	for _, region := range d.derpMap.Regions {
-		nodes := []*tailcfg.DERPNode{}
-		for i, node := range region.Nodes {
-			if strings.HasSuffix(node.Name, "claysolution.com") {
-				nodes = append(nodes, region.Nodes[i])
-			}
-		}
-		if len(nodes) != 0 {
-			derpMap.Regions[region.RegionID] = &tailcfg.DERPRegion{
-				RegionID:   region.RegionID,
-				RegionCode: region.RegionCode,
-				RegionName: region.RegionName,
-				Nodes:      nodes,
-			}
-		}
-	}
-	ctx.JSON(derpMap)
 }
