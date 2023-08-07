@@ -58,7 +58,7 @@ func Convert(result []fofa.FofaResult) (*tailcfg.DERPMap, error) {
 
 		nodeName := u.String()
 
-		regionName := fmt.Sprintf("%s-%s-%s", r.ASOrganization, r.Country, r.Region)
+		regionName := fmt.Sprintf("%s-%s-%s-%s", r.ASOrganization, r.Country, r.Region, nodeName)
 
 		regionID := getId(regionName)
 
