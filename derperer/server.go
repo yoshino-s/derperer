@@ -185,11 +185,10 @@ func webhookResponse(url string, token string, message string) error {
 }
 
 func (d *Derperer) webhook(ctx iris.Context) {
-	command := ctx.URLParam("command")
+	nodeName := ctx.URLParam("text")
 	token := ctx.URLParam("token")
 	responseUrl := ctx.URLParam("response_url")
-	nodeName := strings.Split(command, " ")[1]
-	message := fmt.Sprintf("delete node %s", nodeName)
+	var message string
 	if nodeName == "" {
 		message = "node name is empty"
 
@@ -216,5 +215,4 @@ func (d *Derperer) webhook(ctx iris.Context) {
 		zap.L().Error("failed to send response", zap.Error(err))
 	}
 	ctx.StatusCode(iris.StatusOK)
-	return
 }
