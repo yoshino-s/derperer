@@ -58,6 +58,7 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 	}
 
 	app.Get("/derp.json", derperer.getDerpMap)
+	app.Get("/drop", derperer.drop)
 
 	return derperer, nil
 }
@@ -157,4 +158,26 @@ func (d *Derperer) getDerpMap(ctx iris.Context) {
 	} else {
 		ctx.JSON(d.derpMap)
 	}
+}
+
+func (d *Derperer) drop(ctx iris.Context) {
+	nodeName := ctx.URLParam("node")
+	if nodeName == "" {
+		ctx.StatusCode(iris.StatusBadRequest)
+		return
+	}
+	d.mu.Lock()
+	for regionID, region := range d.derpMap.Regions {
+		for i, node := range region.Nodes {
+			if node.Name == nodeName {
+				d.derpMap.Regions[regionID].Nodes = append(region.Nodes[:i], region.Nodes[i+1:]...)
+			}
+		}
+		if len(d.derpMap.Regions[regionID].Nodes) == 0 {
+			delete(d.derpMap.Regions, regionID)
+		}
+	}
+	d.mu.Unlock()
+	ctx.StatusCode(iris.StatusOK)
+	ctx.JSON(d.derpMap)
 }
