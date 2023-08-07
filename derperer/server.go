@@ -1,7 +1,11 @@
 package derperer
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -58,7 +62,7 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 	}
 
 	app.Get("/derp.json", derperer.getDerpMap)
-	app.Get("/drop", derperer.drop)
+	app.Get("/webhook", derperer.webhook)
 
 	return derperer, nil
 }
@@ -160,24 +164,57 @@ func (d *Derperer) getDerpMap(ctx iris.Context) {
 	}
 }
 
-func (d *Derperer) drop(ctx iris.Context) {
-	nodeName := ctx.URLParam("node")
-	if nodeName == "" {
-		ctx.StatusCode(iris.StatusBadRequest)
-		return
+func webhookResponse(url string, token string, message string) error {
+	body, err := json.Marshal(map[string]string{
+		"token":         token,
+		"response_type": "in_channel",
+		"text":          message,
+	})
+	if err != nil {
+		return err
 	}
-	d.mu.Lock()
-	for regionID, region := range d.derpMap.Regions {
-		for i, node := range region.Nodes {
-			if node.Name == nodeName {
-				d.derpMap.Regions[regionID].Nodes = append(region.Nodes[:i], region.Nodes[i+1:]...)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := http.Client{}
+	_, err = client.Do(req)
+	return err
+
+}
+
+func (d *Derperer) webhook(ctx iris.Context) {
+	command := ctx.URLParam("command")
+	token := ctx.URLParam("token")
+	responseUrl := ctx.URLParam("response_url")
+	nodeName := strings.Split(command, " ")[1]
+	message := fmt.Sprintf("delete node %s", nodeName)
+	if nodeName == "" {
+		message = "node name is empty"
+
+	} else {
+		cnt := 0
+		d.mu.Lock()
+		for regionID, region := range d.derpMap.Regions {
+			for i, node := range region.Nodes {
+				if node.Name == nodeName {
+					d.derpMap.Regions[regionID].Nodes = append(region.Nodes[:i], region.Nodes[i+1:]...)
+					cnt++
+				}
+			}
+			if len(d.derpMap.Regions[regionID].Nodes) == 0 {
+				delete(d.derpMap.Regions, regionID)
 			}
 		}
-		if len(d.derpMap.Regions[regionID].Nodes) == 0 {
-			delete(d.derpMap.Regions, regionID)
-		}
+		d.mu.Unlock()
+		message = fmt.Sprintf("delete %d nodes", cnt)
 	}
-	d.mu.Unlock()
+
+	err := webhookResponse(responseUrl, token, message)
+	if err != nil {
+		zap.L().Error("failed to send response", zap.Error(err))
+	}
 	ctx.StatusCode(iris.StatusOK)
-	ctx.JSON(d.derpMap)
+	return
 }
