@@ -6,14 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
-	"sync"
+	"strconv"
 	"time"
 
+	"git.yoshino-s.xyz/yoshino-s/derperer/derperer/db"
 	"git.yoshino-s.xyz/yoshino-s/derperer/fofa"
 	"github.com/kataras/iris/v12"
 	"go.uber.org/zap"
-	"tailscale.com/tailcfg"
 )
 
 const FINGERPRINT = `"<h1>DERP</h1>" && cert.is_valid=true && cert.is_match=true && is_domain=true`
@@ -21,10 +20,9 @@ const FINGERPRINT = `"<h1>DERP</h1>" && cert.is_valid=true && cert.is_match=true
 type Derperer struct {
 	DerpererConfig
 	*tester
-	app     *iris.Application
-	derpMap *tailcfg.DERPMap
-	ctx     context.Context
-	mu      *sync.Mutex
+	app *iris.Application
+	db  *db.DB
+	ctx context.Context
 }
 
 type DerpererConfig struct {
@@ -36,6 +34,7 @@ type DerpererConfig struct {
 	ProbeTimeout   time.Duration
 	FetchBatch     int
 	TestBatch      int
+	DatabaseUri    string
 }
 
 func NewDerperer(config DerpererConfig) (*Derperer, error) {
@@ -50,15 +49,16 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 	if err != nil {
 		return nil, err
 	}
+	db, err := db.New(ctx, config.DatabaseUri)
+	if err != nil {
+		return nil, err
+	}
 	derperer := &Derperer{
 		DerpererConfig: config,
 		tester:         t,
 		app:            app,
-		derpMap: &tailcfg.DERPMap{
-			Regions: map[int]*tailcfg.DERPRegion{},
-		},
-		ctx: ctx,
-		mu:  &sync.Mutex{},
+		db:             db,
+		ctx:            ctx,
 	}
 
 	app.Get("/derp.json", derperer.getDerpMap)
@@ -96,27 +96,29 @@ func (d *Derperer) UpdateDERPMap(rawResult []fofa.FofaResult) {
 		zap.L().Error("failed to convert", zap.Error(err))
 		return
 	}
-	newDerpMap := d.Test(derpMap)
+	newDerpMap, _ := d.Test(derpMap)
 
-	d.mu.Lock()
-	for regionID, region := range newDerpMap.Regions {
-		if _, ok := d.derpMap.Regions[regionID]; !ok {
-			d.derpMap.Regions[regionID] = region
-		} else {
-			d.derpMap.Regions[regionID].Nodes = append(d.derpMap.Regions[regionID].Nodes, region.Nodes...)
+	for _, region := range newDerpMap.Regions {
+		err := d.db.InsertDERPRegion(region)
+		if err != nil {
+			zap.L().Fatal("failed to insert region", zap.Error(err))
 		}
 	}
-	d.mu.Unlock()
 }
 
 func (d *Derperer) Start() error {
 	go func() {
 		for {
-			d.mu.Lock()
-			derpMap := d.derpMap.Clone()
-			d.derpMap = d.Test(derpMap)
-			d.mu.Unlock()
 			time.Sleep(d.UpdateInterval)
+			derpMap, err := d.db.GetDERPMap()
+			if err != nil {
+				zap.L().Error("failed to get derp map", zap.Error(err))
+				continue
+			}
+			_, banned := d.Test(derpMap)
+			for _, bannedId := range banned {
+				d.db.BanRegion(bannedId)
+			}
 		}
 	}()
 
@@ -130,38 +132,14 @@ func (d *Derperer) Start() error {
 	return d.app.Listen(d.Address)
 }
 
-func contain(list []string, target string) bool {
-	for _, item := range list {
-		if item == target {
-			return true
-		}
-	}
-	return false
-}
-
 func (d *Derperer) getDerpMap(ctx iris.Context) {
-	nodeName := strings.Split(ctx.URLParam("node"), ";")
-	if ctx.URLParam("node") != "" {
-		derpMap := &tailcfg.DERPMap{
-			Regions: map[int]*tailcfg.DERPRegion{},
-		}
-		for regionID, region := range d.derpMap.Regions {
-			for _, node := range region.Nodes {
-				if contain(nodeName, node.Name) {
-					if _, ok := derpMap.Regions[regionID]; !ok {
-						derpMap.Regions[regionID] = &tailcfg.DERPRegion{
-							RegionID: regionID,
-							Nodes:    []*tailcfg.DERPNode{},
-						}
-					}
-					derpMap.Regions[regionID].Nodes = append(derpMap.Regions[regionID].Nodes, node)
-				}
-			}
-		}
-		ctx.JSON(derpMap)
-	} else {
-		ctx.JSON(d.derpMap)
+	derpMap, err := d.db.GetDERPMap()
+	if err != nil {
+		ctx.StatusCode(iris.StatusInternalServerError)
+		ctx.WriteString(err.Error())
+		return
 	}
+	ctx.JSON(derpMap)
 }
 
 func webhookResponse(url string, token string, message string) error {
@@ -185,32 +163,22 @@ func webhookResponse(url string, token string, message string) error {
 }
 
 func (d *Derperer) webhook(ctx iris.Context) {
-	nodeName := ctx.URLParam("text")
+	text := ctx.URLParam("text")
 	token := ctx.URLParam("token")
 	responseUrl := ctx.URLParam("response_url")
 	var message string
-	if nodeName == "" {
-		message = "node name is empty"
-
+	nodeId, err := strconv.Atoi(text)
+	if err != nil {
+		message = "node name is invalid"
 	} else {
 		cnt := 0
-		d.mu.Lock()
-		for regionID, region := range d.derpMap.Regions {
-			for i, node := range region.Nodes {
-				if node.Name == nodeName {
-					d.derpMap.Regions[regionID].Nodes = append(region.Nodes[:i], region.Nodes[i+1:]...)
-					cnt++
-				}
-			}
-			if len(d.derpMap.Regions[regionID].Nodes) == 0 {
-				delete(d.derpMap.Regions, regionID)
-			}
+		cnt, err := d.db.BanRegion(nodeId)
+		if err != nil {
+			message = "failed to delete node"
 		}
-		d.mu.Unlock()
 		message = fmt.Sprintf("delete %d nodes", cnt)
 	}
-
-	err := webhookResponse(responseUrl, token, message)
+	err = webhookResponse(responseUrl, token, message)
 	if err != nil {
 		zap.L().Error("failed to send response", zap.Error(err))
 	}

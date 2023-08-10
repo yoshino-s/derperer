@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -51,74 +50,37 @@ func newTester(ctx context.Context, logf logger.Logf, latencyLimit time.Duration
 	}, nil
 }
 
-func flattenDEPRMap(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
-	res := &tailcfg.DERPMap{
-		Regions: map[int]*tailcfg.DERPRegion{},
-	}
-	idx := 0
-	for regionID, region := range derpMap.Regions {
-		for _, node := range region.Nodes {
-			res.Regions[idx] = &tailcfg.DERPRegion{
-				RegionID:   idx,
-				RegionName: fmt.Sprintf("%d$$$%s", regionID, node.Name),
-				RegionCode: node.Name,
-				Nodes:      []*tailcfg.DERPNode{node},
-			}
-			idx++
-		}
-	}
-	return res
-}
-
-func (t *tester) Test(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
+func (t *tester) Test(derpMap *tailcfg.DERPMap) (*tailcfg.DERPMap, []int) {
 	wg := &sync.WaitGroup{}
 	mu := &sync.Mutex{}
 
 	newDerpMap := derpMap.Clone()
-	flattenedMap := flattenDEPRMap(derpMap)
 
 	zap.L().Info("Start Test", zap.Int("regionCount", CountDERPMap(derpMap)))
 
-	removeRegion := func(regionName string) {
+	bannedRegions := []int{}
+
+	removeRegion := func(regionID int) {
 		mu.Lock()
 		defer mu.Unlock()
-		res := strings.Split(regionName, "$$$")
-		if len(res) != 2 {
-			return
-		}
-		regionID, err := strconv.Atoi(res[0])
-		if err != nil {
-			return
-		}
-		nodeName := res[1]
-		region := newDerpMap.Regions[regionID]
-		if region == nil {
-			return
-		}
-		for i, node := range region.Nodes {
-			if node.Name == nodeName {
-				region.Nodes = append(region.Nodes[:i], region.Nodes[i+1:]...)
-				break
-			}
-		}
-		if len(region.Nodes) == 0 {
-			delete(newDerpMap.Regions, regionID)
-		}
+
+		bannedRegions = append(bannedRegions, regionID)
+		delete(newDerpMap.Regions, regionID)
 	}
 
-	wg.Add(CountDERPMap(flattenedMap) + len(flattenedMap.Regions))
+	wg.Add(CountDERPMap(derpMap) + len(derpMap.Regions))
 	ctx, cancel := context.WithCancel(t.ctx)
 
-	for _, region := range flattenedMap.Regions {
+	for _, region := range derpMap.Regions {
 		go func(region *tailcfg.DERPRegion) {
 			defer wg.Done()
 			latency, _, err := t.measureHTTPSLatency(ctx, region)
 			if err != nil {
 				zap.L().Debug("HTTPS Error", zap.Any("dest", region.RegionCode), zap.Error(err))
-				removeRegion(region.RegionName)
+				removeRegion(region.RegionID)
 			} else if latency > t.latencyLimit {
 				zap.L().Debug("HTTPS Latency", zap.Any("dest", region.RegionCode), zap.Duration("latency", latency))
-				removeRegion(region.RegionName)
+				removeRegion(region.RegionID)
 			}
 		}(region)
 		for _, node := range region.Nodes {
@@ -127,7 +89,7 @@ func (t *tester) Test(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 				err := t.testDerpNode(ctx, node, false)
 				if err != nil {
 					zap.L().Debug("Node Error", zap.Any("dest", node.Name), zap.Error(err))
-					removeRegion(node.Name)
+					removeRegion(node.RegionID)
 				}
 			}(node)
 		}
@@ -138,7 +100,7 @@ func (t *tester) Test(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 
 	zap.L().Info("End Test", zap.Int("regionCount", CountDERPMap(newDerpMap)))
 
-	return newDerpMap
+	return newDerpMap, bannedRegions
 }
 
 func (t *tester) measureHTTPSLatency(ctx context.Context, reg *tailcfg.DERPRegion) (time.Duration, netip.Addr, error) {
