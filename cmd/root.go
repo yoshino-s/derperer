@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -24,6 +25,8 @@ func init() {
 
 func initConfig() {
 	viper.AutomaticEnv()
+	viper.SetEnvPrefix("derperer")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("$HOME/.derperer")

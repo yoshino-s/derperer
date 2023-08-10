@@ -34,7 +34,7 @@ func init() {
 
 	rootCmd.AddCommand(serverCmd)
 
-	rootCmd.PersistentFlags().String("config.DatabaseUri", "", "database url")
+	serverCmd.PersistentFlags().String("config.DatabaseUri", "", "database url")
 	serverCmd.PersistentFlags().String("config.FofaClient.Email", "", "fofa email")
 	serverCmd.PersistentFlags().String("config.FofaClient.Key", "", "fofa key")
 	serverCmd.PersistentFlags().Int("config.FetchBatch", 100, "batch")
