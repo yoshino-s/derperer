@@ -11,9 +11,6 @@ import (
 	"tailscale.com/tailcfg"
 )
 
-var id = 114000
-var idMap = map[string]int{}
-
 func CountDERPMap(derpMap *tailcfg.DERPMap) int {
 	count := 0
 	for _, region := range derpMap.Regions {
@@ -22,19 +19,12 @@ func CountDERPMap(derpMap *tailcfg.DERPMap) int {
 	return count
 }
 
-func getId(ip string) int {
-	if id, ok := idMap[ip]; ok {
-		return id
-	}
-	id++
-	idMap[ip] = id
-	return id
-}
-
 func Convert(result []fofa.FofaResult) (*tailcfg.DERPMap, error) {
 	derpMap := &tailcfg.DERPMap{
 		Regions: map[int]*tailcfg.DERPRegion{},
 	}
+
+	var id = 0
 
 	for _, r := range result {
 		ip := net.ParseIP(r.IP).To4()
@@ -60,7 +50,8 @@ func Convert(result []fofa.FofaResult) (*tailcfg.DERPMap, error) {
 
 		regionName := fmt.Sprintf("%s-%s-%s-%s", r.ASOrganization, r.Country, r.Region, nodeName)
 
-		regionID := getId(regionName)
+		regionID := id
+		id++
 
 		node := &tailcfg.DERPNode{
 			Name:     nodeName,

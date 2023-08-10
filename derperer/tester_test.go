@@ -38,7 +38,7 @@ func TestDebugDERPNode(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	result := server.Test(derpMap)
+	result, _ := server.Test(derpMap)
 
 	assert.NoError(t, err)
 	zap.L().Info("Result", zap.Any("result", result))

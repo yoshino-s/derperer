@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -16,8 +17,20 @@ var (
 
 func init() {
 	cobra.OnInitialize(initLog)
+	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "log level")
+}
+
+func initConfig() {
+	viper.AutomaticEnv()
+
+	viper.AddConfigPath(".")
+	viper.AddConfigPath("$HOME/.derperer")
+	viper.SetConfigName("derperer")
+	viper.SetConfigType("yaml")
+
+	viper.ReadInConfig()
 }
 
 func initLog() {
