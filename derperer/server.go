@@ -167,16 +167,16 @@ func (d *Derperer) webhook(ctx iris.Context) {
 	token := ctx.URLParam("token")
 	responseUrl := ctx.URLParam("response_url")
 	var message string
-	nodeId, err := strconv.Atoi(text)
+	regionID, err := strconv.Atoi(text)
 	if err != nil {
-		message = "node name is invalid"
+		message = "region id is invalid"
 	} else {
 		cnt := 0
-		cnt, err := d.db.BanRegion(nodeId)
+		cnt, err := d.db.BanRegion(regionID)
 		if err != nil {
-			message = "failed to delete node"
+			message = "failed to delete region"
 		}
-		message = fmt.Sprintf("delete %d nodes", cnt)
+		message = fmt.Sprintf("delete %d region(s) for %d", cnt, regionID)
 	}
 	err = webhookResponse(responseUrl, token, message)
 	if err != nil {
