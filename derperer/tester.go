@@ -68,10 +68,11 @@ func (t *tester) Test(derpMap *tailcfg.DERPMap) (*tailcfg.DERPMap, []int) {
 		delete(newDerpMap.Regions, regionID)
 	}
 
-	wg.Add(CountDERPMap(derpMap) + len(derpMap.Regions))
+	wg.Add(len(derpMap.Regions))
 	ctx, cancel := context.WithCancel(t.ctx)
 
 	for _, region := range derpMap.Regions {
+		zap.L().Debug("Test Region", zap.Any("dest", region))
 		go func(region *tailcfg.DERPRegion) {
 			defer wg.Done()
 			latency, _, err := t.measureHTTPSLatency(ctx, region)
@@ -83,16 +84,6 @@ func (t *tester) Test(derpMap *tailcfg.DERPMap) (*tailcfg.DERPMap, []int) {
 				removeRegion(region.RegionID)
 			}
 		}(region)
-		for _, node := range region.Nodes {
-			go func(node *tailcfg.DERPNode) {
-				defer wg.Done()
-				err := t.testDerpNode(ctx, node, false)
-				if err != nil {
-					zap.L().Debug("Node Error", zap.Any("dest", node.Name), zap.Error(err))
-					removeRegion(node.RegionID)
-				}
-			}(node)
-		}
 	}
 
 	wg.Wait()
@@ -174,7 +165,7 @@ func (t *tester) measureHTTPSLatency(ctx context.Context, reg *tailcfg.DERPRegio
 	return result.ServerProcessing, ip, nil
 }
 
-func (t *tester) testDerpNode(ctx context.Context, derpNode *tailcfg.DERPNode, ipv6 bool) error {
+func (t *tester) TestDerpNode(ctx context.Context, derpNode *tailcfg.DERPNode, ipv6 bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), t.probeTimeout)
 	defer cancel()
 

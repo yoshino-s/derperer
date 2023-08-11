@@ -16,7 +16,7 @@ import (
 
 const (
 	URL    = "https://fofa.info/api/v1/search/next?email=%s&key=%s&qbase64=%s&fields=%s&next=%s&size=%d"
-	Fields = "ip,port,host,domain,country,region,as_organization"
+	Fields = "ip,port,host,protocol,country,region,as_organization"
 )
 
 type Fofa struct {
@@ -59,7 +59,7 @@ func (fofa *Fofa) Query(query string, batch int, limit int) (<-chan FofaResult, 
 					IP:             result[0],
 					Port:           result[1],
 					Host:           result[2],
-					Domain:         result[3],
+					Protocol:       result[3],
 					Country:        result[4],
 					Region:         result[5],
 					ASOrganization: result[6],
@@ -122,7 +122,7 @@ type FofaResult struct {
 	IP             string `json:"ip"`
 	Port           string `json:"port"`
 	Host           string `json:"host"`
-	Domain         string `json:"domain"`
+	Protocol       string `json:"protocol"`
 	Country        string `json:"country"`
 	Region         string `json:"region"`
 	ASOrganization string `json:"as_organization"`

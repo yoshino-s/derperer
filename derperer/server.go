@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const FINGERPRINT = `"<h1>DERP</h1>" && cert.is_valid=true && cert.is_match=true && is_domain=true`
+const FINGERPRINT = `"<h1>DERP</h1>"`
 
 type Derperer struct {
 	DerpererConfig

@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"git.yoshino-s.xyz/yoshino-s/derperer/fofa"
 	"go.uber.org/zap"
@@ -27,18 +28,43 @@ func Convert(result []fofa.FofaResult) (*tailcfg.DERPMap, error) {
 	var id = 0
 
 	for _, r := range result {
-		ip := net.ParseIP(r.IP).To4()
-		if ip == nil {
-			zap.L().Debug("invalid ip", zap.String("ip", r.IP))
+		if r.Protocol != "https" {
 			continue
 		}
 
-		u, err := url.Parse(r.Host)
-		if err != nil || u.Host == "" {
-			zap.L().Debug("invalid host", zap.String("host", r.Host))
+		if net.ParseIP(r.IP).To4() == nil {
 			continue
 		}
-		host := u.Hostname()
+
+		regionID := id
+		id++
+
+		node := &tailcfg.DERPNode{
+			// Name:     nodeName,
+			RegionID: regionID,
+			// HostName: host,
+			// IPv4:     ip,
+			// DERPPort: port,
+		}
+
+		node.IPv4 = r.IP
+
+		if strings.HasPrefix(r.Host, "http") {
+			u, err := url.Parse(r.Host)
+			if err != nil || u.Host == "" {
+				zap.L().Debug("invalid host", zap.String("host", r.Host))
+				continue
+			}
+			node.HostName = u.Hostname()
+			node.Name = u.String()
+		} else {
+			node.HostName = r.IP
+			node.Name = fmt.Sprintf("%s://%s:%s", r.Protocol, r.IP, r.Port)
+		}
+
+		if node.HostName == node.IPv4 {
+			node.InsecureForTests = true
+		}
 
 		port, err := strconv.Atoi(r.Port)
 		if err != nil {
@@ -46,42 +72,16 @@ func Convert(result []fofa.FofaResult) (*tailcfg.DERPMap, error) {
 			continue
 		}
 
-		nodeName := u.String()
+		node.DERPPort = port
 
-		regionName := fmt.Sprintf("%s-%s-%s-%s", r.ASOrganization, r.Country, r.Region, nodeName)
-
-		regionID := id
-		id++
-
-		node := &tailcfg.DERPNode{
-			Name:     nodeName,
-			RegionID: regionID,
-			HostName: host,
-			IPv4:     r.IP,
-			DERPPort: port,
-		}
-
-		if _, ok := derpMap.Regions[regionID]; !ok {
-			derpMap.Regions[regionID] = &tailcfg.DERPRegion{
-				RegionID:   regionID,
-				RegionName: regionName,
-				RegionCode: regionName,
-				Nodes: []*tailcfg.DERPNode{
-					node,
-				},
-			}
-		} else {
-			replaced := false
-			for idx, prevNode := range derpMap.Regions[regionID].Nodes {
-				if prevNode.IPv4 == prevNode.HostName && prevNode.IPv4 == node.IPv4 && prevNode.DERPPort == node.DERPPort {
-					// prevNode is a ip, replace
-					derpMap.Regions[regionID].Nodes[idx] = node
-					replaced = true
-				}
-			}
-			if !replaced {
-				derpMap.Regions[regionID].Nodes = append(derpMap.Regions[regionID].Nodes, node)
-			}
+		regionName := fmt.Sprintf("%s-%s-%s-%s", r.ASOrganization, r.Country, r.Region, node.Name)
+		derpMap.Regions[regionID] = &tailcfg.DERPRegion{
+			RegionID:   regionID,
+			RegionName: regionName,
+			RegionCode: regionName,
+			Nodes: []*tailcfg.DERPNode{
+				node,
+			},
 		}
 	}
 	return derpMap, nil

@@ -19,11 +19,10 @@ var derpMap = &tailcfg.DERPMap{
 			RegionName: "test",
 			Nodes: []*tailcfg.DERPNode{
 				{
-					Name:     "derp1.webrtc.win",
+					Name:     "199.38.181.104",
 					RegionID: 1,
-					HostName: "https://derp.anxincloud.cn",
-					IPv4:     "123.249.97.214",
-					DERPPort: 443,
+					HostName: "derp1f.tailscale.com",
+					IPv4:     "199.38.181.104",
 				},
 			},
 		},
@@ -34,12 +33,14 @@ func TestDebugDERPNode(t *testing.T) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	zap.ReplaceGlobals(logger)
 	server, err := derperer.NewDerperer(derperer.DerpererConfig{
-		LatencyLimit: time.Second,
+		LatencyLimit: 100 * time.Second,
+		ProbeTimeout: 10 * time.Second,
+		DatabaseUri:  "mongodb://derperer:derperer@mongodb.storage",
 	})
 	assert.NoError(t, err)
 
 	result, _ := server.Test(derpMap)
 
 	assert.NoError(t, err)
-	zap.L().Info("Result", zap.Any("result", result))
+	assert.Equal(t, 1, derperer.CountDERPMap(result))
 }
