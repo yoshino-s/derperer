@@ -183,4 +183,5 @@ func (d *Derperer) webhook(ctx iris.Context) {
 		zap.L().Error("failed to send response", zap.Error(err))
 	}
 	ctx.StatusCode(iris.StatusOK)
+	ctx.Text(message)
 }
