@@ -1,17 +1,24 @@
-FROM golang:1.20-alpine as build-stage
-
+FROM golang:1.20-alpine as builder
 ARG VERSION
+ARG CN
 ENV VERSION=${VERSION}
 
-WORKDIR /src
-COPY . .
-RUN go env -w GOPROXY=https://goproxy.cn,direct
-RUN CGO_ENABLED=0 go build -o /main --ldflags "-w -extldflags '-static' -X git.yoshino-s.xyz/yoshino-s/derperer/cmd.Version=${VERSION:-dev}" .
+# if CN is true, use goproxy.cn
+RUN if [ "$CN" = "true" ] ; then \
+    echo "using cn environment" \
+    && go env -w GOPROXY=https://goproxy.cn,direct \
+    && sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list \
+    ;fi
+
+WORKDIR /app
+COPY . /app
+
+RUN CGO_ENABLED=0 go build -o /derperer --ldflags "-w -extldflags '-static' -X git.yoshino-s.xyz/yoshino-s/derperer/cmd.Version=${VERSION:-dev}" .
 
 # Final image.
 FROM alpine:latest
-COPY --from=build-stage /main /usr/local/bin/main
+COPY --from=builder /derperer /usr/local/bin/derperer
 
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/main", "server"]
+ENTRYPOINT ["/usr/local/bin/derperer", "server"]
