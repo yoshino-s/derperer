@@ -4,7 +4,9 @@
         "derphttp",
         "dmap",
         "Fofa",
+        "gofiber",
         "mapstructure",
+        "Mbps",
         "speedtest",
         "tailscale"
     ]

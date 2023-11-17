@@ -1,7 +1,6 @@
 package derperer
 
 import (
-	"fmt"
 	"sort"
 
 	"tailscale.com/tailcfg"
@@ -14,19 +13,6 @@ const (
 	DERPRegionStatusAlive
 	DERPRegionStatusError
 )
-
-func ParseDERPRegionStatus(status string) (DERPRegionStatus, error) {
-	switch status {
-	case "alive":
-		return DERPRegionStatusAlive, nil
-	case "error":
-		return DERPRegionStatusError, nil
-	case "unknown":
-		return DERPRegionStatusUnknown, nil
-	default:
-		return DERPRegionStatusAlive, fmt.Errorf("unknown status: %s", status)
-	}
-}
 
 // DERPMap describes the set of DERP packet relay servers that are available.
 type DERPMap struct {
@@ -56,6 +42,22 @@ func NewDERPMap() *DERPMap {
 			RegionScore: map[int]float64{},
 		},
 	}
+}
+
+func (src *DERPMap) Clone() *DERPMap {
+	if src == nil {
+		return nil
+	}
+	dst := new(DERPMap)
+	*dst = *src
+	dst.HomeParams = src.HomeParams.Clone()
+	if dst.Regions != nil {
+		dst.Regions = map[int]*DERPRegion{}
+		for k, v := range src.Regions {
+			dst.Regions[k] = v.Clone()
+		}
+	}
+	return dst
 }
 
 func (m *DERPMap) Convert() *tailcfg.DERPMap {
@@ -96,6 +98,21 @@ type DERPHomeParams struct {
 	// A nil map means no change from the previous value (if any); an empty
 	// non-nil map can be sent to reset all scores back to 1.0.
 	RegionScore map[int]float64 `json:",omitempty"`
+}
+
+func (src *DERPHomeParams) Clone() *DERPHomeParams {
+	if src == nil {
+		return nil
+	}
+	dst := new(DERPHomeParams)
+	*dst = *src
+	if dst.RegionScore != nil {
+		dst.RegionScore = map[int]float64{}
+		for k, v := range src.RegionScore {
+			dst.RegionScore[k] = v
+		}
+	}
+	return dst
 }
 
 func (p *DERPHomeParams) Convert() *tailcfg.DERPHomeParams {
@@ -166,6 +183,19 @@ type DERPRegion struct {
 	Error string `json:",omitempty"`
 
 	Status DERPRegionStatus `json:""`
+}
+
+func (src *DERPRegion) Clone() *DERPRegion {
+	if src == nil {
+		return nil
+	}
+	dst := new(DERPRegion)
+	*dst = *src
+	dst.Nodes = make([]*DERPNode, len(src.Nodes))
+	for i := range dst.Nodes {
+		dst.Nodes[i] = src.Nodes[i].Clone()
+	}
+	return dst
 }
 
 func (r *DERPRegion) Convert() *tailcfg.DERPRegion {
@@ -245,6 +275,15 @@ type DERPNode struct {
 	// CanPort80 specifies whether this DERP node is accessible over HTTP
 	// on port 80 specifically. This is used for captive portal checks.
 	CanPort80 bool `json:",omitempty"`
+}
+
+func (src *DERPNode) Clone() *DERPNode {
+	if src == nil {
+		return nil
+	}
+	dst := new(DERPNode)
+	*dst = *src
+	return dst
 }
 
 func (n *DERPNode) Convert() *tailcfg.DERPNode {
