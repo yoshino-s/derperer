@@ -1,6 +1,11 @@
 stages:
+  - test
   - release
+
+release-image:
+  extends: .release-image
 
 include:
   - project: template/gitlabci-template
     file: docker.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
