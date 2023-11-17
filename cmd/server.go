@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"reflect"
+	"strconv"
 	"time"
 
 	"git.yoshino-s.xyz/yoshino-s/derperer/derperer"
@@ -34,18 +35,18 @@ func init() {
 
 	rootCmd.AddCommand(serverCmd)
 
-	serverCmd.PersistentFlags().String("config.DatabaseUri", "", "database url")
-	serverCmd.PersistentFlags().String("config.FofaClient.Email", "", "fofa email")
-	serverCmd.PersistentFlags().String("config.FofaClient.Key", "", "fofa key")
-	serverCmd.PersistentFlags().Int("config.FetchBatch", 100, "batch")
-	serverCmd.PersistentFlags().String("config.Address", ":8080", "address")
-	serverCmd.PersistentFlags().Duration("config.UpdateInterval", 10*time.Minute, "update interval")
-	serverCmd.PersistentFlags().Duration("config.FetchInterval", 4*time.Hour, "fetch interval")
-	serverCmd.PersistentFlags().Duration("config.LatencyLimit", time.Second, "latency limit")
-	serverCmd.PersistentFlags().Duration("config.ProbeTimeout", 5*time.Second, "probe timeout")
-	serverCmd.PersistentFlags().Int("config.TestBatch", 5, "test batch")
+	serverCmd.Flags().String("config.FofaClient.Email", "", "fofa email")
+	serverCmd.Flags().String("config.FofaClient.Key", "", "fofa key")
+	serverCmd.Flags().Int("config.FetchBatch", 100, "batch")
+	serverCmd.Flags().Duration("config.FetchInterval", 4*time.Hour, "fetch interval")
+	serverCmd.Flags().String("config.Address", ":8080", "address")
+	serverCmd.Flags().Duration("config.DERPMapPolicy.RecheckInterval", time.Hour, "update interval")
+	serverCmd.Flags().Duration("config.DERPMapPolicy.CheckDuration", 5*time.Second, "check duration")
+	serverCmd.Flags().Float64("config.DERPMapPolicy.BaselineBandwidth", 2, "bandwidth limit, unit: Mbps")
+	serverCmd.Flags().Int("config.DERPMapPolicy.TestConcurrency", 4, "test concurrency")
+	serverCmd.Flags().String("config.AdminToken", "", "admin token")
 
-	viper.BindPFlags(serverCmd.PersistentFlags())
+	viper.BindPFlags(serverCmd.Flags())
 }
 
 func toTimeHookFunc() mapstructure.DecodeHookFunc {
@@ -53,7 +54,16 @@ func toTimeHookFunc() mapstructure.DecodeHookFunc {
 		f reflect.Type,
 		t reflect.Type,
 		data interface{}) (interface{}, error) {
-		if t == reflect.TypeOf(time.Time{}) {
+		if t == reflect.TypeOf(float64(0)) {
+			switch f.Kind() {
+			case reflect.String:
+				return strconv.ParseFloat(data.(string), 64)
+			case reflect.Int64:
+				return float64(data.(int64)), nil
+			default:
+				return data, nil
+			}
+		} else if t == reflect.TypeOf(time.Time{}) {
 			switch f.Kind() {
 			case reflect.String:
 				return time.Parse(time.RFC3339, data.(string))
