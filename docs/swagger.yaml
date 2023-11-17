@@ -1,0 +1,121 @@
+definitions:
+  derperer.DERPMapPolicy:
+    properties:
+      baselineBandwidth:
+        type: number
+      checkDuration:
+        $ref: '#/definitions/time.Duration'
+      recheckInterval:
+        allOf:
+        - $ref: '#/definitions/time.Duration'
+        description: RecheckInterval is the interval to recheck a abandoned node.
+      testConcurrency:
+        type: integer
+    type: object
+  derperer.DerpererConfig:
+    properties:
+      address:
+        type: string
+      adminToken:
+        type: string
+      derpmapPolicy:
+        $ref: '#/definitions/derperer.DERPMapPolicy'
+      fetchBatch:
+        type: integer
+      fetchInterval:
+        $ref: '#/definitions/time.Duration'
+      fofaClient:
+        $ref: '#/definitions/fofa.Fofa'
+    type: object
+  fofa.Fofa:
+    properties:
+      email:
+        type: string
+      key:
+        type: string
+    type: object
+  time.Duration:
+    enum:
+    - -9223372036854775808
+    - 9223372036854775807
+    - 1
+    - 1000
+    - 1000000
+    - 1000000000
+    - 60000000000
+    - 3600000000000
+    type: integer
+    x-enum-varnames:
+    - minDuration
+    - maxDuration
+    - Nanosecond
+    - Microsecond
+    - Millisecond
+    - Second
+    - Minute
+    - Hour
+info:
+  contact: {}
+paths:
+  /:
+    get:
+      produces:
+      - text/html
+      responses: {}
+      summary: Index
+  /admin:
+    get:
+      produces:
+      - text/html
+      responses: {}
+      security:
+      - BasicAuth: []
+      summary: Admin Index
+  /admin/config:
+    get:
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - BasicAuth: []
+      summary: Get Server Config
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: config
+        in: body
+        name: config
+        required: true
+        schema:
+          $ref: '#/definitions/derperer.DerpererConfig'
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - BasicAuth: []
+      summary: Change Server Config
+  /derp.json:
+    get:
+      parameters:
+      - description: alive|error|all
+        enum:
+        - alive
+        - error
+        - all
+        in: query
+        name: status
+        type: string
+      - description: latency limit, e.g. 500ms
+        in: query
+        name: latency-limit
+        type: string
+      - description: bandwidth limit, e.g. 2Mbps
+        in: query
+        name: bandwidth-limit
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      summary: Get DERP Map
+swagger: "2.0"

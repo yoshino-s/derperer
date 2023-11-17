@@ -2,13 +2,16 @@ package derperer
 
 import (
 	"context"
+	"strings"
 	"time"
 
+	_ "git.yoshino-s.xyz/yoshino-s/derperer/docs"
 	"git.yoshino-s.xyz/yoshino-s/derperer/fofa"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
+	"github.com/gofiber/swagger"
 	"github.com/sourcegraph/conc"
 	"go.uber.org/zap"
 )
@@ -41,28 +44,12 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 		derpMap: NewMap(&config.DERPMapPolicy),
 	}
 
-	app.Get("/", func(c *fiber.Ctx) error {
-		c.Set("Content-Type", "text/html")
-		return c.SendString(`
-			<a href="/derp.json">derp.json</a>?status=[<b>alive</b>|abandoned|error|all],...<br/>
-			<a href="/admin">admin</a><br/>
-			`)
-	})
+	app.Get("/swagger/*", swagger.HandlerDefault)
 
-	app.Get("/derp.json", func(c *fiber.Ctx) error {
-		status := c.Query("status")
-		if status == "all" {
-			return c.JSON(derperer.derpMap.DERPMap)
-		}
-		if status == "" {
-			status = "alive"
-		}
-		s, err := ParseDERPRegionStatus(status)
-		if err != nil {
-			return err
-		}
-		return c.JSON(derperer.derpMap.FilterDERPMap(s))
-	})
+	app.Get("/", derperer.index)
+
+	app.Get("/derp.json", derperer.getDerp)
+
 	if config.AdminToken != "" {
 		adminApi := app.Group("/admin", basicauth.New(basicauth.Config{
 			Users: map[string]string{
@@ -70,28 +57,14 @@ func NewDerperer(config DerpererConfig) (*Derperer, error) {
 			},
 		}))
 
-		adminApi.Get("/", func(c *fiber.Ctx) error {
-			c.Set("Content-Type", "text/html")
-			return c.SendString(`
-			<a href="/admin/monitor">monitor</a><br/>
-			<a href="/admin/debug/pprof">pprof</a><br/>
-			<a href="/admin/config">config</a> or <code>POST</code> to change config <br/>
-			`)
-		})
+		adminApi.Get("/", derperer.adminIndex)
 
 		adminApi.Get("/monitor", monitor.New())
 		adminApi.Use(pprof.New(pprof.Config{
 			Prefix: "/admin",
 		}))
-		adminApi.Get("/config", func(c *fiber.Ctx) error {
-			return c.JSON(config)
-		})
-		adminApi.Post("/config", func(c *fiber.Ctx) error {
-			if err := c.BodyParser(&config); err != nil {
-				return err
-			}
-			return c.JSON(config)
-		})
+		adminApi.Get("/config", derperer.getConfig)
+		adminApi.Post("/config", derperer.setConfig)
 	}
 
 	return derperer, nil
@@ -132,4 +105,70 @@ func (d *Derperer) Start() {
 	})
 
 	wg.Wait()
+}
+
+// @Summary Index
+// @Produce html
+// @Router / [get]
+func (d *Derperer) index(c *fiber.Ctx) error {
+	c.Set("Content-Type", "text/html")
+	return c.SendString(strings.TrimSpace(`
+<a href="/derp.json">derp.json</a><br/>
+<a href="/swagger/index.html">swagger</a><br/>
+<a href="/admin">admin</a><br/>
+		`))
+}
+
+// @Summary Get DERP Map
+// @Param status query string false "alive|error|all" Enums(alive, error, all)
+// @Param latency-limit query string false "latency limit, e.g. 500ms"
+// @Param bandwidth-limit query string string "bandwidth limit, e.g. 2Mbps"
+// @Produce json
+// @Router /derp.json [get]
+func (d *Derperer) getDerp(c *fiber.Ctx) error {
+	var filter DERPMapFilter
+	if err := c.QueryParser(&filter); err != nil {
+		return err
+	}
+	m, err := d.derpMap.FilterDERPMap(filter)
+	if err != nil {
+		return err
+	}
+	return c.JSON(m)
+}
+
+// @securityDefinitions.basic BasicAuth
+
+// @Summary Admin Index
+// @Produce html
+// @Security BasicAuth
+// @Router /admin [get]
+func (d *Derperer) adminIndex(c *fiber.Ctx) error {
+	c.Set("Content-Type", "text/html")
+	return c.SendString(`
+	<a href="/admin/monitor">monitor</a><br/>
+	<a href="/admin/debug/pprof">pprof</a><br/>
+	<a href="/admin/config">config</a> or <code>POST</code> to change config <br/>
+	`)
+}
+
+// @Summary Get Server Config
+// @Produce json
+// @Security BasicAuth
+// @Router /admin/config [get]
+func (d *Derperer) getConfig(c *fiber.Ctx) error {
+	return c.JSON(d.config)
+}
+
+// @Summary Change Server Config
+// @Accept json
+// @Param config body derperer.DerpererConfig true "config"
+// @Produce json
+// @Security BasicAuth
+// @Router /admin/config [post]
+func (d *Derperer) setConfig(c *fiber.Ctx) error {
+	if err := c.BodyParser(&d.config); err != nil {
+		return err
+	}
+	return c.JSON(d.config)
 }

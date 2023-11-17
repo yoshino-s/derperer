@@ -10,6 +10,7 @@ import (
 
 	"git.yoshino-s.xyz/yoshino-s/derperer/fofa"
 	"git.yoshino-s.xyz/yoshino-s/derperer/speedtest"
+	"github.com/gofiber/fiber/v2"
 	"github.com/sourcegraph/conc/pool"
 	"go.uber.org/zap"
 )
@@ -45,20 +46,84 @@ func NewMap(policy *DERPMapPolicy) *Map {
 	}
 }
 
-func (d *Map) FilterDERPMap(status ...DERPRegionStatus) *DERPMap {
-	newMap := &DERPMap{
-		Regions:            map[int]*DERPRegion{},
-		HomeParams:         d.HomeParams,
-		OmitDefaultRegions: d.OmitDefaultRegions,
+type DERPMapFilter struct {
+	All            bool   `query:"all"`
+	Status         string `query:"status"`
+	LatencyLimit   string `query:"latency-limit"`
+	BandwidthLimit string `query:"bandwidth-limit"`
+}
+
+func (d *Map) FilterDERPMap(filter DERPMapFilter) (*DERPMap, error) {
+	if filter.All {
+		return d.DERPMap, nil
 	}
+	if filter.Status == "" {
+		filter.Status = "alive"
+	}
+	var status DERPRegionStatus
+	switch filter.Status {
+	case "alive":
+		status = DERPRegionStatusAlive
+	case "error":
+		status = DERPRegionStatusError
+	case "unknown":
+		status = DERPRegionStatusUnknown
+	default:
+		return nil, fiber.NewError(400, fmt.Sprintf("unknown status: %s", filter.Status))
+	}
+
+	newMap := NewDERPMap()
+	newMapId := 900
 	for _, region := range d.Regions {
-		for _, s := range status {
-			if region.Status == s {
-				newMap.Regions[region.RegionID] = region
+		r := region.Clone()
+
+		if filter.LatencyLimit != "" && r.Latency != "" {
+			latency, err := time.ParseDuration(r.Latency)
+			if err != nil {
+				return nil, err
+			}
+			limit, err := time.ParseDuration(filter.LatencyLimit)
+			if err != nil {
+				return nil, err
+			}
+			if latency > limit {
+				continue
 			}
 		}
+
+		if filter.BandwidthLimit != "" && r.Bandwidth != "" {
+			bandwidth, err := speedtest.ParseUnit(r.Bandwidth, "bps")
+			if err != nil {
+				return nil, err
+			}
+			limit, err := speedtest.ParseUnit(filter.BandwidthLimit, "bps")
+			if err != nil {
+				return nil, err
+			}
+			if bandwidth.Value < limit.Value {
+				continue
+			}
+		}
+
+		if region.Status != status {
+			continue
+		}
+
+		r.RegionID = newMapId
+		for _, node := range r.Nodes {
+			node.RegionID = newMapId
+		}
+		newMap.Regions[newMapId] = r
+
+		score := d.DERPMap.HomeParams.RegionScore[region.RegionID]
+
+		if score != 0 {
+			newMap.HomeParams.RegionScore[newMapId] = score
+		}
+
+		newMapId++
 	}
-	return newMap
+	return newMap, nil
 }
 
 func (d *Map) findByHostnameAndPort(hostname string, port ...int) *DERPRegion {
@@ -93,7 +158,7 @@ func (d *Map) testRegion(region *DERPRegion) {
 		}
 		region.Latency = res.Latency.String()
 		region.Bandwidth = res.Bps.String()
-		d.DERPMap.HomeParams.RegionScore[region.RegionID] = ((d.policy.BaselineBandwidth * 1024 * 1024) / res.Bps.Value())
+		d.DERPMap.HomeParams.RegionScore[region.RegionID] = ((d.policy.BaselineBandwidth * 1024 * 1024) / res.Bps.Value)
 		region.Status = DERPRegionStatusAlive
 		d.logger.Debug("checked derp", zap.Int("region_id", region.RegionID), zap.String("bandwidth", res.Bps.String()), zap.String("latency", res.Latency.String()))
 	})
