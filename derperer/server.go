@@ -2,11 +2,13 @@ package derperer
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	_ "git.yoshino-s.xyz/yoshino-s/derperer/docs"
 	"git.yoshino-s.xyz/yoshino-s/derperer/fofa"
+	"git.yoshino-s.xyz/yoshino-s/derperer/persistent"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
@@ -19,10 +21,11 @@ import (
 const FINGERPRINT = `"<h1>DERP</h1>"`
 
 type Derperer struct {
-	config  DerpererConfig
-	app     *fiber.App
-	ctx     context.Context
-	derpMap *Map
+	config     DerpererConfig
+	app        *fiber.App
+	ctx        context.Context
+	derpMap    *Map
+	persistent *persistent.Persistent
 }
 
 type DerpererConfig struct {
@@ -32,16 +35,32 @@ type DerpererConfig struct {
 	FetchBatch    int
 	FofaClient    fofa.Fofa
 	DERPMapPolicy DERPMapPolicy
+	DataPath      string
 }
 
 func NewDerperer(config DerpererConfig) (*Derperer, error) {
 	app := fiber.New()
 	ctx := context.Background()
+
+	p, err := persistent.NewPersistent(config.DataPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if config.FofaClient.Email == "" || config.FofaClient.Key == "" {
+		return nil, fmt.Errorf("fofa email and key must be set")
+	}
+
 	derperer := &Derperer{
-		config:  config,
-		app:     app,
-		ctx:     ctx,
-		derpMap: NewMap(&config.DERPMapPolicy),
+		config:     config,
+		app:        app,
+		ctx:        ctx,
+		derpMap:    NewMap(&config.DERPMapPolicy),
+		persistent: p,
+	}
+
+	if err := derperer.persistent.Load("derp_map", derperer.derpMap); err != nil {
+		zap.L().Error("failed to load derp_map", zap.Error(err))
 	}
 
 	app.Get("/swagger/*", swagger.HandlerDefault)
@@ -81,6 +100,10 @@ func (d *Derperer) FetchFofaData() {
 		select {
 		case r := <-res:
 			d.derpMap.AddFofaResult(r)
+
+			if err := d.persistent.Save("derp_map", d.derpMap); err != nil {
+				logger.Error("failed to save derp_map", zap.Error(err))
+			}
 		case <-finish:
 			logger.Info("fofa query finished")
 			return
@@ -95,8 +118,17 @@ func (d *Derperer) Start() {
 
 	wg.Go(func() {
 		for {
+			var lastFetch time.Time
+			if err := d.persistent.Load("last_fetch", &lastFetch); err != nil {
+				zap.L().Error("failed to load last_fetch", zap.Error(err))
+			}
+
+			<-time.After(d.config.FetchInterval - time.Since(lastFetch))
 			d.FetchFofaData()
-			time.Sleep(d.config.FetchInterval)
+
+			if err := d.persistent.Save("last_fetch", time.Now()); err != nil {
+				zap.L().Error("failed to save last_fetch", zap.Error(err))
+			}
 		}
 	})
 

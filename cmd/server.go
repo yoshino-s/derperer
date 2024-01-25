@@ -38,13 +38,14 @@ func init() {
 	serverCmd.Flags().String("config.FofaClient.Email", "", "fofa email")
 	serverCmd.Flags().String("config.FofaClient.Key", "", "fofa key")
 	serverCmd.Flags().Int("config.FetchBatch", 100, "batch")
-	serverCmd.Flags().Duration("config.FetchInterval", 4*time.Hour, "fetch interval")
+	serverCmd.Flags().Duration("config.FetchInterval", 24*time.Hour, "fetch interval")
 	serverCmd.Flags().String("config.Address", ":8080", "address")
 	serverCmd.Flags().Duration("config.DERPMapPolicy.RecheckInterval", time.Hour, "update interval")
 	serverCmd.Flags().Duration("config.DERPMapPolicy.CheckDuration", 5*time.Second, "check duration")
 	serverCmd.Flags().Float64("config.DERPMapPolicy.BaselineBandwidth", 2, "bandwidth limit, unit: Mbps")
 	serverCmd.Flags().Int("config.DERPMapPolicy.TestConcurrency", 4, "test concurrency")
 	serverCmd.Flags().String("config.AdminToken", "", "admin token")
+	serverCmd.Flags().String("config.DataPath", "./data", "data path")
 
 	viper.BindPFlags(serverCmd.Flags())
 }
