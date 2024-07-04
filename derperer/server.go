@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	_ "git.yoshino-s.xyz/yoshino-s/derperer/docs"
-	"git.yoshino-s.xyz/yoshino-s/derperer/fofa"
-	"git.yoshino-s.xyz/yoshino-s/derperer/persistent"
+	_ "github.com/yoshino-s/derperer/docs"
+	"github.com/yoshino-s/derperer/fofa"
+	"github.com/yoshino-s/derperer/persistent"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/monitor"

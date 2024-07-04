@@ -1,0 +1,146 @@
+name: goreleaser
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  goreleaser:
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+      tag_name: ${{ steps.tag.outputs.tag_name }}
+
+    permissions:
+      packages: write
+      id-token: write
+      contents: write
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+
+      - run: git fetch --prune --unshallow
+
+      - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+
+      # This installs the current latest release.
+      - uses: ko-build/setup-ko@ace48d793556083a76f1e3e6068850c1f4a369aa # v0.6
+        with:
+          version: v0.15.2
+
+      - uses: imjasonh/setup-crane@00c9e93efa4e1138c9a7a5c594acd6c75a2fbf0c # v0.3
+
+      - uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # v3.5.0
+
+      - name: Set tag output
+        id: tag
+        run: echo "tag_name=${GITHUB_REF#refs/*/}" >> "$GITHUB_OUTPUT"
+
+      - uses: goreleaser/goreleaser-action@5742e2a039330cbb23ebf35f046f814d4c6ff811 # v5.1.0
+        id: run-goreleaser
+        with:
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: sign ko-image
+        run: |
+          digest=$(crane digest "${REGISTRY}":"${GIT_TAG}")
+          cosign sign --yes \
+              -a GIT_HASH="${GIT_HASH}" \
+              -a GIT_TAG="${GIT_TAG}" \
+              -a RUN_ID="${RUN_ID}" \
+              -a RUN_ATTEMPT="${RUN_ATTEMPT}" \
+              "${REGISTRY}@${digest}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_HASH: ${{ github.sha }}
+          GIT_TAG: ${{ steps.tag.outputs.tag_name }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
+          REGISTRY: "ghcr.io/${{ github.repository }}"
+
+      - name: Generate subject
+        id: hash
+        env:
+          ARTIFACTS: "${{ steps.run-goreleaser.outputs.artifacts }}"
+        run: |
+          set -euo pipefail
+
+          checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .path')
+          echo "hashes=$(cat $checksum_file | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+  provenance:
+    needs:
+      - goreleaser
+
+    permissions:
+      actions: read   # To read the workflow path.
+      id-token: write # To sign the provenance.
+      contents: write # To add assets to a release.
+
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: "${{ needs.goreleaser.outputs.hashes }}"
+      upload-assets: true
+      upload-tag-name: "${{ needs.goreleaser.outputs.tag_name }}"
+
+  verification:
+    needs:
+      - goreleaser
+      - provenance
+
+    runs-on: ubuntu-latest
+    permissions: read-all
+
+    steps:
+      # Note: this will be replaced with the GHA in the future.
+      - name: Install the verifier
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          gh -R slsa-framework/slsa-verifier release download v1.3.2 -p "slsa-verifier-linux-amd64"
+          chmod ug+x slsa-verifier-linux-amd64
+          # Note: see https://github.com/slsa-framework/slsa-verifier/blob/main/SHA256SUM.md
+          COMPUTED_HASH=$(sha256sum slsa-verifier-linux-amd64 | cut -d ' ' -f1)
+          EXPECTED_HASH="b1d6c9bbce6274e253f0be33158cacd7fb894c5ebd643f14a911bfe55574f4c0"
+          if [[ "$EXPECTED_HASH" != "$COMPUTED_HASH" ]];then
+              echo "error: expected $EXPECTED_HASH, computed $COMPUTED_HASH"
+              exit 1
+          fi
+
+      - name: Download assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROVENANCE: "${{ needs.provenance.outputs.provenance-name }}"
+        run: |
+          set -euo pipefail
+
+          gh -R "$GITHUB_REPOSITORY" release download "$GITHUB_REF_NAME" -p "*.tar.gz"
+          gh -R "$GITHUB_REPOSITORY" release download "$GITHUB_REF_NAME" -p "$PROVENANCE"
+
+      - name: Verify assets
+        env:
+          CHECKSUMS: ${{ needs.goreleaser.outputs.hashes }}
+          PROVENANCE: "${{ needs.provenance.outputs.provenance-name }}"
+        run: |
+          set -euo pipefail
+
+          checksums=$(echo "$CHECKSUMS" | base64 -d)
+          while read -r line; do
+              fn=$(echo $line | cut -d ' ' -f2)
+
+              echo "Verifying $fn"
+              ./slsa-verifier-linux-amd64 -artifact-path "$fn" \
+                                      -provenance "$PROVENANCE" \
+                                      -source "github.com/$GITHUB_REPOSITORY" \
+                                      -tag "$GITHUB_REF_NAME"
+
+          done <<<"$checksums"
