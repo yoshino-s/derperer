@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"git.yoshino-s.xyz/yoshino-s/derperer/fofa"
-	"git.yoshino-s.xyz/yoshino-s/derperer/speedtest"
+	"github.com/yoshino-s/derperer/fofa"
+	"github.com/yoshino-s/derperer/speedtest"
 	"github.com/gofiber/fiber/v2"
 	"github.com/sourcegraph/conc/pool"
 	"go.uber.org/zap"

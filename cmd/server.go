@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"git.yoshino-s.xyz/yoshino-s/derperer/derperer"
-	"git.yoshino-s.xyz/yoshino-s/derperer/fofa"
+	"github.com/yoshino-s/derperer/derperer"
+	"github.com/yoshino-s/derperer/fofa"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
