@@ -1,0 +1,6 @@
+config:
+  FofaClient:
+    Email:
+    Key:
+  AdminToken:
+  DataPath: /data

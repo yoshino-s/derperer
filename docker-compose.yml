@@ -1,0 +1,18 @@
+version: "3"
+services:
+  derperer:
+    image: ghcr.io/yoshino-s/derperer:latest
+    container_name: derperer
+    command:
+      - server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    # - ./derperer.yaml:/root/.derperer/derperer.yaml # or use config file
+    environment:
+      - DERPERER_CONFIG_FOFACLIENT_EMAIL=xxx
+      - DERPERER_CONFIG_FOFACLIENT_KEY=xxx
+      - DERPERER_CONFIG_ADMINTOKEN=xxx
+      - ERPERER_CONFIG_DATAPATH=/data
+    restart: always
