@@ -7,7 +7,7 @@ require (
 	github.com/gofiber/swagger v0.1.14
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/sourcegraph/conc v0.3.0
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.15.0
 	github.com/swaggo/swag v1.16.2
 	go.uber.org/zap v1.24.0
