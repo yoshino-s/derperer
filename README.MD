@@ -1,8 +1,15 @@
 # Derperer
 
+ ![GitHub Release](https://img.shields.io/github/v/release/yoshino-s/derperer) [![goreleaser](https://github.com/yoshino-s/derperer/actions/workflows/publish.yaml/badge.svg)](https://github.com/yoshino-s/derperer/actions/workflows/publish.yaml) ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/yoshino-s/derperer)
+
+
 Derperer is mother of [derper](https://pkg.go.dev/tailscale.com/cmd/derper).
 
 ## Quick Start
+
+> TL;DR
+> 
+> play with `ghcr.io/yoshino-s/derperer:latest`
 
 First, you need to have a [fofa](https://fofa.info/) account
 
