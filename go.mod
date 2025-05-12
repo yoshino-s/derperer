@@ -1,6 +1,6 @@
 module github.com/yoshino-s/derperer
 
-go 1.20
+go 1.21
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.5
@@ -9,7 +9,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
-	github.com/swaggo/swag v1.16.3
+	github.com/swaggo/swag v1.16.4
 	go.uber.org/zap v1.27.0
 	tailscale.com v1.46.1
 )
