@@ -1,0 +1,51 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/": {
+            "get": {
+                "produces": [
+                    "text/html"
+                ],
+                "summary": "Index",
+                "responses": {}
+            }
+        },
+        "/derp.json": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get DERP Map",
+                "parameters": [
+                    {
+                        "enum": [
+                            "alive",
+                            "error",
+                            "all"
+                        ],
+                        "type": "string",
+                        "description": "alive|error|all",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "latency limit, e.g. 500ms",
+                        "name": "latency-limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "bandwidth limit, e.g. 2Mbps",
+                        "name": "bandwidth-limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {}
+            }
+        }
+    }
+}

@@ -46,3 +46,27 @@ func ParseUnit(s string, unit string) (Unit, error) {
 	}
 	return Unit{n * f, unit}, nil
 }
+
+func (b Unit) MarshalText() ([]byte, error) {
+	return []byte(b.String()), nil
+}
+func (b Unit) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf(`"%s"`, b.String())), nil
+}
+func (b *Unit) UnmarshalText(data []byte) error {
+	u, err := ParseUnit(string(data), b.Uint)
+	if err != nil {
+		return err
+	}
+	*b = u
+	return nil
+}
+func (b *Unit) UnmarshalJSON(data []byte) error {
+	s := strings.Trim(string(data), `"`)
+	u, err := ParseUnit(s, b.Uint)
+	if err != nil {
+		return err
+	}
+	*b = u
+	return nil
+}

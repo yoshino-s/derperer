@@ -1,62 +1,36 @@
 package cmd
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	"github.com/yoshino-s/go-framework/application"
+	"github.com/yoshino-s/go-framework/cmd"
+	"github.com/yoshino-s/go-framework/configuration"
 	"go.uber.org/zap"
 )
 
+var name = "derperer"
+var app = application.NewMainApplication()
+
 var (
 	rootCmd = &cobra.Command{
-		Use: "derperer",
+		Use: name,
 	}
-	logLevel string
 )
 
 func init() {
-	cobra.OnInitialize(initLog)
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(func() {
+		configuration.Setup(name)
 
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "log level")
-}
+		zap.ReplaceGlobals(app.Logger)
+	})
 
-func initConfig() {
-	viper.AutomaticEnv()
-	viper.SetEnvPrefix("derperer")
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	configuration.GenerateConfiguration.Register(rootCmd.PersistentFlags())
+	app.Configuration().Register(rootCmd.PersistentFlags())
 
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("$HOME/.derperer")
-	viper.SetConfigName("derperer")
-	viper.SetConfigType("yaml")
-
-	viper.ReadInConfig()
-}
-
-func initLog() {
-	var config zap.Config
-	if Version == "dev" {
-		config = zap.NewDevelopmentConfig()
-	} else {
-		config = zap.NewProductionConfig()
-	}
-	err := config.Level.UnmarshalText([]byte(logLevel))
-	if err != nil {
-		fmt.Printf("failed to parse log level: %s\n", logLevel)
-	}
-	logger, err := config.Build()
-	if err != nil {
-		panic(err)
-	}
-	zap.ReplaceGlobals(logger)
+	rootCmd.AddCommand(cmd.VersionCmd)
 }
 
 // Execute executes the root command.
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		zap.L().Fatal("failed to execute root command", zap.Error(err))
-	}
+func Execute() error {
+	return rootCmd.Execute()
 }
