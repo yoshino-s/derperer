@@ -56,7 +56,7 @@ jobs:
           KO_DEFAULTBASEIMAGE: alpine:3
         run: |
           set -eufx -o pipefail
-          DIGESTS="$(ko build . --bare --sbom spdx --tags '${{ steps.meta.outputs.tags }}'')"
+          DIGESTS="$(ko build . --bare --sbom spdx --tags '${{ steps.meta.outputs.tags }}')"
           echo "DIGESTS=$DIGESTS" >> $GITHUB_ENV
       - name: Cosign
         run: |
