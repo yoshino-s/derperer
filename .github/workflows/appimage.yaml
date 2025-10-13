@@ -42,8 +42,6 @@ jobs:
             type=ref,event=pr,prefix=pr-,enable=true,priority=600
             type=sha,enable=true
           sep-tags: ","
-          sep-labels: ","
-          sep-annotations: ","
       - name: Setup variables
         run: |
           set -efx -o pipefail
@@ -58,7 +56,7 @@ jobs:
           KO_DEFAULTBASEIMAGE: alpine:3
         run: |
           set -eufx -o pipefail
-          DIGESTS="$(ko build . --bare --sbom spdx --tags '${{ steps.meta.outputs.tags }}' --image-annotation '${{ steps.meta.outputs.annotations }}' --image-label '${{ steps.meta.outputs.labels }}')"
+          DIGESTS="$(ko build . --bare --sbom spdx --tags '${{ steps.meta.outputs.tags }}'')"
           echo "DIGESTS=$DIGESTS" >> $GITHUB_ENV
       - name: Cosign
         run: |
