@@ -88,7 +88,7 @@ func (d DerpEndpoints) Convert() *DERPMap {
 type DerpQueryParams struct {
 	Status         DerpStatus    `query:"status" json:"status" enums:"alive,error,all"`
 	LatencyLimit   time.Duration `query:"latency-limit" json:"latency_limit"`
-	BandwidthLimit float64       `query:"bandwidth-limit" json:"bandwidth_limit"`
+	BandwidthLimit string        `query:"bandwidth-limit" json:"bandwidth_limit"`
 }
 
 func (d DerpEndpoints) Query(params *DerpQueryParams) DerpEndpoints {
@@ -100,8 +100,14 @@ func (d DerpEndpoints) Query(params *DerpQueryParams) DerpEndpoints {
 		if params.LatencyLimit != 0 && endpoint.Latency > params.LatencyLimit {
 			continue
 		}
-		if params.BandwidthLimit != 0 && endpoint.Bandwidth.Value < params.BandwidthLimit {
-			continue
+		if params.BandwidthLimit != "" {
+			bandwidthLimit, err := speedtest.ParseUnit(params.BandwidthLimit, "bps")
+			if err != nil {
+				continue
+			}
+			if endpoint.Bandwidth.Value < bandwidthLimit.Value {
+				continue
+			}
 		}
 		res = append(res, endpoint)
 	}
