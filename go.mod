@@ -16,7 +16,7 @@ require (
 	github.com/yoshino-s/go-app v0.0.0-20250507082943-4ce850d574ba
 	github.com/yoshino-s/go-framework v0.9.5
 	go.uber.org/zap v1.27.0
-	tailscale.com v1.82.5
+	tailscale.com v1.88.3
 )
 
 require (
@@ -34,7 +34,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.8.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
-	github.com/go-json-experiment/json v0.0.0-20250417205406-170dfdcf87d1 // indirect
+	github.com/go-json-experiment/json v0.0.0-20250813024750-ebf49471dced // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
