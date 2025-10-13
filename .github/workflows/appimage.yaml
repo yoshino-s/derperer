@@ -1,0 +1,65 @@
+name: Build App Image
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  packages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Setup Ko
+        uses: ko-build/setup-ko@v0.6
+      - name: Setup Cosign
+        uses: sigstore/cosign-installer@v3.8.1
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          tags: |
+            type=schedule,pattern=nightly,enable=true,priority=1000
+            type=ref,event=branch,enable=true,priority=600
+            type=ref,event=tag,enable=true,priority=600
+            type=ref,event=pr,prefix=pr-,enable=true,priority=600
+            type=sha,enable=true
+          sep-tags: ","
+          sep-labels: ","
+          sep-annotations: ","
+      - name: Setup variables
+        run: |
+          set -efx -o pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION="${VERSION:-${GITHUB_REF_NAME}}"
+          else
+            VERSION="${VERSION:-snapshot}"
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+      - name: Run Ko
+        env:
+          KO_DEFAULTBASEIMAGE: alpine:3
+        run: |
+          set -eufx -o pipefail
+          DIGESTS="$(ko build . --bare --sbom spdx --tags '${{ steps.meta.outputs.tags }}' --image-annotation '${{ steps.meta.outputs.annotations }}' --image-label '${{ steps.meta.outputs.labels }}')"
+          echo "DIGESTS=$DIGESTS" >> $GITHUB_ENV
+      - name: Cosign
+        run: |
+          COSIGN_EXPERIMENTAL=true cosign sign --yes $DIGESTS

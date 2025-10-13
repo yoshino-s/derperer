@@ -1,6 +1,30 @@
-config:
-  FofaClient:
-    Email:
-    Key:
-  AdminToken:
-  DataPath: /data
+derperer:
+  check_duration: 10s # The duration for which to check nodes
+  data_path: /tmp # The path to the data directory
+  recheck_interval: 0s # The interval at which to recheck abandoned nodes
+  refetch_interval: 10m0s # The interval at which to fetch data
+  check_concurrency: 10 # The number of concurrent tests to run
+fofa:
+  email: "" # fofa email
+  endpoint: https://fofa.info/api/v1 # fofa endpoint
+  key: "" # fofa key
+http:
+  addr: :8080 # http listen address
+  behind_proxy: false # http behind proxy
+  external_url: http://127.0.0.1:8080 # external url
+  feature: "30" # http feature
+  log: false # enable http log
+  otel: false # enable opentelemetry
+  response_trace_id: false # enable x-trace-id in response header
+log:
+  file: "" # log file path
+  format: "" # log format, one of json, console, empty for default (console for dev, json for prod)
+  level: info # log level
+  levels:
+    console: "" # log level for console, empty for same as log.level
+    file: "" # log level for file, empty for same as log.level
+  rotate:
+    enable: false # enable log rotation
+    max_age: 28 # max age of log file in days
+    max_backups: 3 # max number of log file backups
+    max_size: 500 # max size of log file in MB

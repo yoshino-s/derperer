@@ -1,0 +1,33 @@
+info:
+  contact: {}
+paths:
+  /:
+    get:
+      produces:
+      - text/html
+      responses: {}
+      summary: Index
+  /derp.json:
+    get:
+      parameters:
+      - description: alive|error|all
+        enum:
+        - alive
+        - error
+        - all
+        in: query
+        name: status
+        type: string
+      - description: latency limit, e.g. 500ms
+        in: query
+        name: latency-limit
+        type: string
+      - description: bandwidth limit, e.g. 2Mbps
+        in: query
+        name: bandwidth-limit
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      summary: Get DERP Map
+swagger: "2.0"

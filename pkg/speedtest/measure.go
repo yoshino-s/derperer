@@ -6,29 +6,30 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-errors/errors"
 	"github.com/sourcegraph/conc"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
 )
 
-type BandWidthResult struct {
+type SpeedTestResult struct {
 	TotalBytesSent Unit
 	Bps            Unit
 	Latency        time.Duration
 }
 
-func measure(c1, c2 *derphttp.Client, c2DstKey key.NodePublic, duration time.Duration) (*BandWidthResult, error) {
+func (s *SpeedTestService) measure(c1, c2 *derphttp.Client, c2DstKey key.NodePublic, duration time.Duration) (*SpeedTestResult, error) {
 	packetSize := 64 * 1024
 	var packetCount int
 	var totalLatency time.Duration
-	res := &BandWidthResult{}
+	res := &SpeedTestResult{}
 
-	var wg conc.WaitGroup
+	wg := conc.NewWaitGroup()
+	fmt.Printf("Start sending packets for %s...\n", duration)
 
 	wg.Go(func() {
 		t := time.After(duration)
-
 		randBuf := make([]byte, packetSize)
 		if _, err := rand.Read(randBuf); err != nil {
 			panic(err)
@@ -63,22 +64,24 @@ func measure(c1, c2 *derphttp.Client, c2DstKey key.NodePublic, duration time.Dur
 			default:
 				pkt, err := c2.Recv()
 				if err != nil {
-					panic(err)
+					panic(errors.Errorf("recv packet: %w", err))
 				}
 				p, ok := pkt.(derp.ReceivedPacket)
 				if !ok {
-					panic(fmt.Errorf("got %T, want ReceivedPacket", p))
+					panic(errors.Errorf("got %T, want ReceivedPacket", p))
 				}
 				// unmarshal the timestamp from first 8 bytes
 				timestamp := int64(binary.LittleEndian.Uint64(p.Data))
 
 				totalLatency += time.Since(time.Unix(0, timestamp))
 
-				// if len(p.Data) != packetSize {
-				// 	panic(fmt.Errorf("got %d bytes, want %d bytes", len(p.Data), packetSize))
-				// }
+				if len(p.Data) != packetSize {
+					panic(errors.Errorf("got %d bytes, want %d bytes", len(p.Data), packetSize))
+				}
 
 				packetCount++
+
+				s.Logger.Sugar().Debugf("packetCount: %d, latency: %s", packetCount, time.Since(time.Unix(0, timestamp)))
 			}
 		}
 	})

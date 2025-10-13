@@ -1,0 +1,14 @@
+builds:
+- id: derperer
+  dir: .
+  main: .
+  env: []
+  flags:
+  - -tags
+  - netgo
+  ldflags:
+  - -s -w
+  - -extldflags "-static"
+  - -X github.com/yoshino-s/go-framework/common.Version={{ .Env.VERSION }}
+  - -X github.com/yoshino-s/go-framework/common.BuildTime={{ .Date }}
+  - -X github.com/yoshino-s/go-framework/common.Commit={{ .Git.FullCommit }}
