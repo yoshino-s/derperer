@@ -47,6 +47,8 @@ func (d *DerpererService) testDerpEndpoint(endpoint *DerpEndpoint) {
 	res, err := d.SpeedtestService.CheckDerp(endpoint.Convert().ToOriginal(), d.config.CheckDuration)
 	if err != nil {
 		d.Logger.Error("failed to check derp", zap.Any("endpoint", endpoint), zap.Error(err))
+		endpoint.Latency = 0
+		endpoint.Bandwidth = speedtest.Unit{0, "bps"}
 		endpoint.Error = err.Error()
 		endpoint.Status = DerpStatusError
 	} else {

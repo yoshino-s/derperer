@@ -1,9 +1,6 @@
 package derperer
 
 import (
-	"time"
-
-	"github.com/yoshino-s/derperer/pkg/speedtest"
 	"tailscale.com/tailcfg"
 )
 
@@ -19,9 +16,9 @@ type DERPRegion struct {
 
 type DERPNode struct {
 	tailcfg.DERPNode
-	Latency   time.Duration  `json:"latency,omitempty"`
-	Bandwidth speedtest.Unit `json:"bandwidth,omitempty"`
-	Status    DerpStatus     `json:"status,omitempty"`
+	Latency   string     `json:"latency,omitempty"`
+	Bandwidth string     `json:"bandwidth,omitempty"`
+	Status    DerpStatus `json:"status,omitempty"`
 }
 
 func (n *DERPNode) ToOriginal() *tailcfg.DERPNode {
