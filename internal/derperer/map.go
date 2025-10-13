@@ -44,7 +44,7 @@ func (d *DerpererService) Configuration() configuration.Configuration {
 }
 
 func (d *DerpererService) testDerpEndpoint(endpoint *DerpEndpoint) {
-	res, err := d.SpeedtestService.CheckDerp(endpoint.Convert(), d.config.CheckDuration)
+	res, err := d.SpeedtestService.CheckDerp(endpoint.Convert().ToOriginal(), d.config.CheckDuration)
 	if err != nil {
 		d.Logger.Error("failed to check derp", zap.Any("endpoint", endpoint), zap.Error(err))
 		endpoint.Error = err.Error()
