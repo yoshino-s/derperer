@@ -53,6 +53,9 @@ func (b Unit) MarshalText() ([]byte, error) {
 func (b Unit) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`"%s"`, b.String())), nil
 }
+func (b Unit) IsZero() bool {
+	return b.Value == 0
+}
 func (b *Unit) UnmarshalText(data []byte) error {
 	u, err := ParseUnit(string(data), b.Uint)
 	if err != nil {

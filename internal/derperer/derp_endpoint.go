@@ -32,20 +32,27 @@ type DerpEndpoint struct {
 	Error     string         `json:"error,omitempty"`
 }
 
-func (d *DerpEndpoint) Convert() *tailcfg.DERPRegion {
-	return &tailcfg.DERPRegion{
-		RegionID:   d.ID,
-		RegionCode: d.Name,
-		RegionName: d.Name,
-		Nodes: []*tailcfg.DERPNode{
+func (d *DerpEndpoint) Convert() *DERPRegion {
+	return &DERPRegion{
+		DERPRegion: tailcfg.DERPRegion{
+			RegionID:   d.ID,
+			RegionCode: d.Name,
+			RegionName: d.Name,
+		},
+		Nodes: []*DERPNode{
 			{
-				Name:             d.Name,
-				RegionID:         d.ID,
-				HostName:         d.Host,
-				IPv4:             d.IPv4,
-				IPv6:             d.IPv6,
-				DERPPort:         d.Port,
-				InsecureForTests: d.Insecure,
+				DERPNode: tailcfg.DERPNode{
+					Name:             d.Name,
+					RegionID:         d.ID,
+					HostName:         d.Host,
+					IPv4:             d.IPv4,
+					IPv6:             d.IPv6,
+					DERPPort:         d.Port,
+					InsecureForTests: d.Insecure,
+				},
+				Latency:   d.Latency,
+				Bandwidth: d.Bandwidth,
+				Status:    d.Status,
 			},
 		},
 	}
@@ -55,15 +62,21 @@ type DerpEndpoints []*DerpEndpoint
 
 func (d DerpEndpoints) Len() int { return len(d) }
 
-func (d DerpEndpoints) Convert() *tailcfg.DERPMap {
+func (d DerpEndpoints) Convert() *DERPMap {
 	if d == nil {
-		return nil
+		return &DERPMap{
+			DERPMap: tailcfg.DERPMap{
+				Regions: map[int]*tailcfg.DERPRegion{},
+			},
+		}
 	}
-	m := &tailcfg.DERPMap{
-		Regions: make(map[int]*tailcfg.DERPRegion),
-		HomeParams: &tailcfg.DERPHomeParams{
-			RegionScore: map[int]float64{},
+	m := &DERPMap{
+		DERPMap: tailcfg.DERPMap{
+			HomeParams: &tailcfg.DERPHomeParams{
+				RegionScore: map[int]float64{},
+			},
 		},
+		Regions: make(map[int]*DERPRegion),
 	}
 	for _, endpoint := range d {
 		m.Regions[endpoint.ID] = endpoint.Convert()
