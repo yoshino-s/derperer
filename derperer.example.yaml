@@ -1,9 +1,13 @@
+derp_map_url: https://controlplane.tailscale.com/derpmap/default # derp map url
+derp_region_id: 0 # derp region id
 derperer:
-  check_duration: 10s # The duration for which to check nodes
-  data_path: /tmp # The path to the data directory
-  recheck_interval: 0s # The interval at which to recheck abandoned nodes
-  refetch_interval: 10m0s # The interval at which to fetch data
   check_concurrency: 10 # The number of concurrent tests to run
+  check_duration: 10s # The duration for which to check nodes
+  cn: false # Only fetch nodes in China
+  fetch_limit: 100 # Limit of fofa result to fetch
+  recheck_interval: 10s # The interval at which to recheck abandoned nodes
+  refetch_interval: 10m0s # The interval at which to fetch data
+duration: 30s # duration
 fofa:
   email: "" # fofa email
   endpoint: https://fofa.info/api/v1 # fofa endpoint

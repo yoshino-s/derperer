@@ -23,6 +23,7 @@ var (
 	speedtestApp = newSpeedTestCmdApp()
 	speedtestCmd = &cobra.Command{
 		Use: "speedtest",
+		Short: "Run a speed test",
 		Run: func(cmd *cobra.Command, args []string) {
 			app.Append(speedtest.New())
 			app.Append(speedtestApp)

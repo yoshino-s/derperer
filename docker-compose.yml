@@ -1,18 +1,68 @@
-version: "3"
+version: '3.8'
+
 services:
   derperer:
     image: ghcr.io/yoshino-s/derperer:latest
     container_name: derperer
-    command:
-      - server
     ports:
       - "8080:8080"
-    volumes:
-      - ./data:/data
-    # - ./derperer.yaml:/root/.derperer/derperer.yaml # or use config file
     environment:
-      - DERPERER_CONFIG_FOFACLIENT_EMAIL=xxx
-      - DERPERER_CONFIG_FOFACLIENT_KEY=xxx
-      - DERPERER_CONFIG_ADMINTOKEN=xxx
-      - ERPERER_CONFIG_DATAPATH=/data
-    restart: always
+      # Log configuration
+      - DERPERER_LOG_LEVEL=info
+      - DERPERER_LOG_FORMAT=json
+      
+      # HTTP server configuration
+      - DERPERER_HTTP_ADDR=:8080
+      - DERPERER_HTTP_EXTERNAL_URL=http://localhost:8080
+      - DERPERER_HTTP_LOG=true
+      - DERPERER_HTTP_FEATURE=30
+      
+      # DERP configuration
+      - DERPERER_DERPERER_CHECK_DURATION=10s
+      - DERPERER_DERPERER_RECHECK_INTERVAL=10s
+      - DERPERER_DERPERER_REFETCH_INTERVAL=10m
+      - DERPERER_DERPERER_CHECK_CONCURRENCY=10
+      - DERPERER_DERPERER_FETCH_LIMIT=100
+      # Set to true if you want China region only
+      - DERPERER_DERPERER_CN=false
+      
+      # FOFA configuration (uncomment and set your credentials)
+      # - DERPERER_FOFA_EMAIL=your-email@example.com
+      # - DERPERER_FOFA_KEY=your-fofa-key
+      # - DERPERER_FOFA_ENDPOINT=https://fofa.info/api/v1
+    
+    volumes:
+      # Mount config file if you prefer file-based configuration
+      # - ./derperer.yaml:/app/derperer.yaml:ro
+      # Mount data directory for persistence (optional)
+      - derperer_data:/tmp/derperer
+    
+    command: ["serve"]
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Uncomment if you need to limit resources
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 512M
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 256M
+
+volumes:
+  derperer_data:
+    driver: local
+
+# If you want to use a custom network
+# networks:
+#   derperer_network:
+#     driver: bridge
